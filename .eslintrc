@@ -1,0 +1,7 @@
+{
+    "globals": {
+        "chrome": true,
+        "Prism": true,
+        "CodeFlask": true
+    }
+}

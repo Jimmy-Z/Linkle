@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link href="dep/prism.css" rel="stylesheet"></link>
+		<link href="dep/codeflask.css" rel="stylesheet"></link>
+		<style type="text/css">
+			body {
+				font-family: monospace;
+				font-size: medium;
+				margin: 0;
+			}
+			button {
+				font-family: inherit;
+				font-size: inherit;
+				margin: 0;
+				float: left;
+			}
+			#id_conf, #id_conf textarea, #id_conf pre, #id_conf pre code, #id_example, #id_example_code{
+				margin: 0;
+				padding: 0 !important;
+				font-family: inherit;
+				font-size: inherit;
+			}
+			#id_conf, #id_example{
+				width: 640px;
+				height: 400px;
+			}
+			.popup{
+				position: absolute;
+				border: 1px solid black;
+				background-color: white;
+				top: 38%; left: 38%;
+				padding: 12px 20px 12px 20px;
+				z-index: 2;
+			}
+			[hidden] {
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="id_conf"></div>
+		<pre id="id_example" hidden><code id="id_example_code" class="language-ini"></code></pre>
+		<button id="id_save">save</button>
+		<button id="id_show_example">help</button>
+		<button id="id_hide_example" hidden>back</button>
+		<script src="dep/prism.js"></script>
+		<script src="dep/codeflask.js"></script>
+		<script src="options.js"></script>
+	</body>
+</html>
