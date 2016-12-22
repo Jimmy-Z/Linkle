@@ -8,5 +8,6 @@
 	"options_ui": { "page": "options.html" },
 	"permissions": [ "contextMenus", "notifications", "storage", "activeTab"],
 	"optional_permissions": ["cookies", "http://*/", "https://*/"],
-	"short_name": "Linkle"
+	"short_name": "Linkle",
+	"homepage_url": "https://github.com/Jimmy-Z/Linkle"
 }
