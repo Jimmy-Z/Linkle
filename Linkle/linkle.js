@@ -60,7 +60,7 @@ function is_http(u){ // or https
 
 // TODO: handle authentication section
 function extract_host(u){
-	return /^https?:\/\/[\.\-0-9a-z]+/i.exec(u)[0];
+	return /^https?:\/\/[\.\-0-9a-z]+/i.exec(u)[0] + "/";
 }
 
 function extract_domain(u){
@@ -91,49 +91,86 @@ function get_page_cookie(page_url, urls, cb){
 }
 
 // requires "cookie" and site permission
-function get_cookies_parallel(urls, cb){
-	var ret = {}, count = urls.length;
-	urls.forEach(url => {
-		chrome.cookies.getAll({"url": url}, r => {
-			ret[url] = r;
-			--count;
-			if(count == 0){
-				cb(ret);
-			}
+function get_cookies_parallel(urls, descs, cb){
+	var ret = [], cookies = {};
+	if(descs == undefined){
+		urls.forEach(url => {
+			chrome.cookies.getAll({url: url}, r => {
+				if(chrome.runtime.lastError){
+					console.log("chrome.cookies.getAll failed: " + chrome.runtime.lastError.message);
+				}
+				console.log("chrome.cookies.getAll returned for \"" + url + "\": "
+					+ JSON.stringify(r));
+				ret.push(r)
+				if(ret.length == urls.length){
+					// since aria2 doesn't allow different header for multiple links
+					// I'm gonna merge them here
+					// oh, that's for future multiple links support
+					[].concat.apply([], ret).forEach(c => cookies[c.name] = c.value);
+					cb(cookies);
+				}
+			});
 		});
-	});
+	}else{
+		descs.forEach(desc => {
+			chrome.cookies.get(desc, r => {
+				if(chrome.runtime.lastError){
+					console.log("chrome.cookies.get failed: " + chrome.runtime.lastError.message);
+				}
+				console.log("chrome.cookies.get returned: "
+					+ JSON.stringify(r));
+				ret.push(r);
+				if(ret.length == descs.length){
+					ret.forEach(c => cookies[c.name] = c.value);
+					cb(cookies);
+				}
+			});
+		});
+	}
 }
 
 function get_cookies(cookie_setting, page_url, urls, cb){
 	urls = urls.filter(is_http);
 	if(urls.length == 0){
 		cb();
-	}else if (cookie_setting == "link"){
-		var perm = {
-			permissions: ["cookies"],
-			origins: dedupe(urls.map(extract_host))
-		};
+	}else if (cookie_setting == undefined){
+		get_page_cookie(page_url, urls, cb);
+	}else{
+		if(cookie_setting == "link"){
+			var perm = {
+				permissions: ["cookies"],
+				origins: dedupe(urls.map(extract_host))
+			};
+		}else{ // cookie = COOKIE1@http://example1.com/ COOKIE2@example2.com/
+			var cookie_descs = cookie_setting.split(" ").map(c => {
+				var m = /(.*)@(.*)/.exec(c);
+				if(m == null){
+					return null;
+				}else{
+					return { name: m[1], url: m[2] };
+				}
+			}).filter(c => c != null);
+			perm = {
+				permissions: ["cookies"],
+				origins: dedupe(cookie_descs.map(d => d.url))
+			};
+		}
+		console.log("requesting optional permissions: " + JSON.stringify(perm));
 		chrome.permissions.request(perm, granted => {
+			if(chrome.runtime.lastError){
+				// I've seen a weired exception here, but never get to see it again
+				console.log("chrome.permissions.request failed: " + chrome.runtime.lastError.message);
+			}
 			if (granted){
-				get_cookies_parallel(urls, r => {
+				get_cookies_parallel(urls, cookie_descs, r => {
 					chrome.permissions.remove(perm);
-					// since aria2 doesn't allow different header for multiple links
-					// I'm gonna merge them here
-					// oh, that's for future multiple links support
-					var cookie = {};
-					[].concat.apply([], Object.values(r)).forEach(c => {
-						// use object to dedupe
-						cookie[c.name] = c.value;
-					});
-					cb(Object.keys(cookie).map(n => n + "=" + cookie[n]).join("; "));
+					cb(Object.keys(r).map(n => n + "=" + r[n]).join("; "));
 				});
 			}else{
-				console.log("permission requrest declined, fallback to page cookie instead");
+				console.log("permission request declined, fallback to page cookie instead");
 				get_page_cookie(page_url, urls, cb);
 			}
 		});
-	}else{
-		get_page_cookie(page_url, urls, cb);
 	}
 }
 
@@ -251,26 +288,28 @@ function parse_conf(conf){
 }
 
 function linkle_install(profiles){
-	if(profiles.length == 0){
-		console.log("no profile found");
-		return;
-	}
-	profiles.forEach(p => {
-		console.log("installing profile \"" + p.name + "\"");
-		chrome.contextMenus.create({
-			id: p.name,
-			title: p.name,
-			contexts: ["link"],
-			// documentUrlPatterns: p.doc_patterns.split(" "),
-			targetUrlPatterns: p.link_patterns.split(" ")
-		}, () => {
-			if(chrome.runtime.lastError){
-				console.log("failed to create contextMenu \"" +
-					p.name + "\": " + chrome.runtime.lastError.message);
-			}
+	chrome.contextMenus.removeAll(() => {
+		if(profiles.length == 0){
+			console.log("no profile found");
+			return;
+		}
+		profiles.forEach(p => {
+			console.log("installing profile \"" + p.name + "\"");
+			chrome.contextMenus.create({
+				id: p.name,
+				title: p.name,
+				contexts: ["link"],
+				// documentUrlPatterns: p.doc_patterns.split(" "),
+				targetUrlPatterns: p.link_patterns.split(" ")
+			}, () => {
+				if(chrome.runtime.lastError){
+					console.log("failed to create contextMenu \"" +
+						p.name + "\": " + chrome.runtime.lastError.message);
+				}
+			});
 		});
+		chrome.contextMenus.onClicked.addListener(linkle_onClicked);
 	});
-	chrome.contextMenus.onClicked.addListener(linkle_onClicked);
 }
 
 chrome.storage.sync.get(null, r => {
