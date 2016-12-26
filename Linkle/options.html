@@ -13,7 +13,13 @@
 				font-family: inherit;
 				font-size: inherit;
 				margin: 0;
-				float: left;
+				width: 72px;
+			}
+			#id_save, #id_export, #id_import {
+				float: left
+			}
+			#id_show_example, #id_hide_example {
+				float: right
 			}
 			#id_conf, #id_conf textarea, #id_conf pre, #id_conf pre code, #id_example, #id_example_code{
 				margin: 0;
@@ -42,6 +48,8 @@
 		<div id="id_conf"></div>
 		<pre id="id_example" hidden><code id="id_example_code" class="language-ini"></code></pre>
 		<button id="id_save">save</button>
+		<button id="id_import">import</button>
+		<button id="id_export">export</button>
 		<button id="id_show_example">help</button>
 		<button id="id_hide_example" hidden>back</button>
 		<script src="dep/prism.js"></script>

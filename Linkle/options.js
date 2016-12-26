@@ -10,6 +10,10 @@ function is_empty(o){
 }
 
 function read_file(fn, cb){
+	/* HTML5 FileSystem API is a rejected proposal but available on Chrome
+	 * Chrome didn't provide an direct API to access files in extension
+	 * so, this or XMLHttpRequest, what do you think?
+	 */
 	chrome.runtime.getPackageDirectoryEntry(root => {
 		root.getFile(fn, {}, fe => {
 			fe.file(f => {
@@ -21,6 +25,12 @@ function read_file(fn, cb){
 			}, e => console.log(e));
 		}, e => console.log(e));
 	});
+}
+
+function log_chrome_error(prefix){
+	if(chrome.extension.lastError){
+		console.log(prefix + chrome.extension.lastError);
+	}
 }
 
 function save_conf(conf, cb){
@@ -61,22 +71,36 @@ function save_conf(conf, cb){
 				to_be_set[k] = v;
 			}
 		}
-		if(to_be_removed.length > 0){
-			chrome.storage.sync.remove(to_be_removed);
+		function sync_remove(removed_cb){
+			if(to_be_removed.length > 0){
+				chrome.storage.sync.remove(to_be_removed, () => {
+					log_chrome_error("chrome.storage.sync.remove failed: ");
+					removed_cb();
+				});
+			}else{
+				removed_cb();
+			}
 		}
-		if(!is_empty(to_be_set)){
-			chrome.storage.sync.set(to_be_set, () => {
-				if(chrome.extension.lastError){
-					console.log("chrome.extension.lastError.message");
-				}
+		function sync_set(set_cb){
+			if(!is_empty(to_be_set)){
+				chrome.storage.sync.set(to_be_set, () => {
+					log_chrome_error("chrome.storage.sync.set failed: ");
+					set_cb();
+				});
+			}else{
+				set_cb();
+			}
+		}
+		sync_remove(() => {
+			sync_set(() => {
 				if(cb){
 					cb();
 				}
+				if(to_be_removed.length > 0 || !is_empty(to_be_set)){
+					chrome.runtime.reload();
+				}
 			});
-			chrome.runtime.sendMessage({conf: conf_object});
-		}else if(cb){
-			cb();
-		}
+		});
 	});
 }
 
@@ -123,7 +147,7 @@ function popup(parent, msg, cb){
 window.onload = function(){
 	var flask = new CodeFlask;
 	flask.run("#id_conf", {language: "ini"});
-	read_file("example.conf", example_conf => {
+	read_file("example.ini", example_conf => {
 		var ex = document.getElementById("id_example_code");
 		console.log("loaded example conf: \"" + example_conf + "\"");
 		ex.textContent = example_conf;
@@ -145,12 +169,12 @@ window.onload = function(){
 		}
 	}
 	document.getElementById("id_show_example").addEventListener("click", () => {
-		hide("id_conf", "id_save", "id_show_example");
+		hide("id_conf", "id_save", "id_import", "id_export", "id_show_example");
 		show("id_example", "id_hide_example");
 	});
 	document.getElementById("id_hide_example").addEventListener("click", () => {
 		hide("id_example", "id_hide_example");
-		show("id_conf", "id_save", "id_show_example");
+		show("id_conf", "id_save", "id_import", "id_export", "id_show_example");
 	});
 	document.getElementById("id_save").addEventListener("click", () => {
 		save_conf(flask.textarea.value, () => {
@@ -158,5 +182,33 @@ window.onload = function(){
 				window.close();
 			});
 		});
+	});
+	document.getElementById("id_import").addEventListener("click", () => {
+		var input = document.createElement("input");
+		input.type = "file";
+		input.accept = ".ini";
+		input.addEventListener("change", evt => {
+			var f = evt.target.files[0];
+			// console.log(f.name);
+			var r = new FileReader();
+			r.onload = e => {
+				flask.update(e.target.result);
+			};
+			r.readAsText(f);
+		});
+		input.click();
+	});
+	document.getElementById("id_export").addEventListener("click", () => {
+		/* btoa doesn't work for Unicode, an article on mozilla suggest TextEncoderLite and base64-js
+		 * actually String.formCharCode then btoa works correctly for uint8Array, so no need for base64-js
+		 * tested on Chrome 55 and Firefox 50, and atob then .charCodeAt also works for decoding
+		 * and TextEncoder is experimental but available since Chrome 38, so no need for TextEncoderLite
+		 */
+		var b64 = window.btoa(String.fromCharCode.apply(null, new TextEncoder("utf-8").encode(flask.textarea.value)));
+		var a = document.createElement("a");
+		// it defaults to text/plain;charset=US-ASCII, while I'm actually using utf-8
+		a.href = "data:application/octet-stream;base64," + b64;
+		a.download = "config.ini";
+		a.click();
 	});
 };

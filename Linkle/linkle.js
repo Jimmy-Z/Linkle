@@ -1,5 +1,3 @@
-// logo by Freepik from:
-// http://www.flaticon.com/free-icon/download_109717
 "use strict";
 
 function xhr(method, url, data, callback){
@@ -28,6 +26,9 @@ function a2rpc(uri, token, method, args, callback){
 }
 
 function a2addUri(uri, token, uris, options, callback){
+	// we should probably validate options here
+	// like stripping out HTTP only options for FTP or magnet links
+	// but anyway aria2 didn't complain about that
 	a2rpc(uri, token, "addUri", [uris, options], callback);
 }
 
@@ -53,9 +54,40 @@ function dedupe(a){
 	return Object.keys(o);
 }
 
+function is_http(u){ // or https
+	return /^https?:\/\//i.test(u);
+}
+
+// TODO: handle authentication section
+function extract_host(u){
+	return /^https?:\/\/[\.\-0-9a-z]+/i.exec(u)[0];
+}
+
+function extract_domain(u){
+	return /^https?:\/\/([\.\-0-9a-z]+\.)?([\-0-9a-z]+\.[\-0-9a-z]+)/i.exec(u)[2];
+}
+
 // only requires "activeTab" permission, but page cookie only
-function get_page_cookie(cb){
-	chrome.tabs.executeScript({code: "document.cookie"}, cb);
+function get_page_cookie(page_url, urls, cb){
+	// if page_url is not http(s), it would never work
+	if(!is_http(page_url)){
+		cb();
+		return;
+	}
+	// it will be meaningless if page_url doesn't match
+	var page_domain = extract_domain(page_url);
+	if(!urls.some(u => {
+		return extract_domain(u) == page_domain;
+	})){
+		cb();
+		return;
+	}
+	chrome.tabs.executeScript({code: "document.cookie"}, (r) => {
+		if(chrome.runtime.lastError){
+			chrome.log("chrome.tabs.executeScript failed: " + chrome.runtime.lastError.message);
+		}
+		cb(r);
+	});
 }
 
 // requires "cookie" and site permission
@@ -72,13 +104,14 @@ function get_cookies_parallel(urls, cb){
 	});
 }
 
-function get_cookies(urls, cb){
-	if (urls == null){
-		get_page_cookie(cb);
-	}else{
+function get_cookies(cookie_setting, page_url, urls, cb){
+	urls = urls.filter(is_http);
+	if(urls.length == 0){
+		cb();
+	}else if (cookie_setting == "link"){
 		var perm = {
 			permissions: ["cookies"],
-			origins: dedupe(urls.map(u => u.match(/^(http|https):\/\/[\.\-0-9a-z]+\//)[0]))
+			origins: dedupe(urls.map(extract_host))
 		};
 		chrome.permissions.request(perm, granted => {
 			if (granted){
@@ -96,9 +129,11 @@ function get_cookies(urls, cb){
 				});
 			}else{
 				console.log("permission requrest declined, fallback to page cookie instead");
-				get_page_cookie(cb);
+				get_page_cookie(page_url, urls, cb);
 			}
 		});
+	}else{
+		get_page_cookie(page_url, urls, cb);
 	}
 }
 
@@ -111,9 +146,9 @@ function linkle(profile, info){
 				o[k] = profile[k];
 			}
 		}
-		get_cookies(profile.cookie == "link" ? [info.linkUrl] : null, r => {
+		get_cookies(profile.cookie, info.pageUrl, [info.linkUrl], r => {
 			console.log("cookies: \"" + r + "\"");
-			if(r.length > 0){
+			if(r != undefined && r.length > 0){
 				if(o.header == undefined){
 					o.header = ["Cookie: " + r];
 				}else{
@@ -215,36 +250,29 @@ function parse_conf(conf){
 	return profiles;
 }
 
-function linkle_install(profiles, reinstall){
-	if(reinstall){
-		chrome.contextMenus.removeAll();
-	}
+function linkle_install(profiles){
 	if(profiles.length == 0){
+		console.log("no profile found");
 		return;
 	}
 	profiles.forEach(p => {
+		console.log("installing profile \"" + p.name + "\"");
 		chrome.contextMenus.create({
 			id: p.name,
 			title: p.name,
 			contexts: ["link"],
 			// documentUrlPatterns: p.doc_patterns.split(" "),
 			targetUrlPatterns: p.link_patterns.split(" ")
+		}, () => {
+			if(chrome.runtime.lastError){
+				console.log("failed to create contextMenu \"" +
+					p.name + "\": " + chrome.runtime.lastError.message);
+			}
 		});
 	});
+	chrome.contextMenus.onClicked.addListener(linkle_onClicked);
 }
 
-console.log("loaded");
-chrome.contextMenus.onClicked.addListener(linkle_onClicked);
-
-chrome.runtime.onInstalled.addListener(() => {
-	chrome.runtime.onMessage.addListener((request) => {
-		if(request.conf == undefined){
-			return;
-		}
-		linkle_install(parse_conf(request.conf), true);
-	});
-
-	chrome.storage.sync.get(null, r => {
-		linkle_install(parse_conf(r), false);
-	});
+chrome.storage.sync.get(null, r => {
+	linkle_install(parse_conf(r), false);
 });
