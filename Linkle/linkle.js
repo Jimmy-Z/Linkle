@@ -85,8 +85,10 @@ function get_page_cookie(page_url, urls, cb){
 	chrome.tabs.executeScript({code: "document.cookie"}, (r) => {
 		if(chrome.runtime.lastError){
 			chrome.log("chrome.tabs.executeScript failed: " + chrome.runtime.lastError.message);
+			cb();
+		}else{
+			cb(r[0]);
 		}
-		cb(r);
 	});
 }
 
@@ -174,7 +176,7 @@ function get_cookies(cookie_setting, page_url, urls, cb){
 	}
 }
 
-function linkle(profile, info){
+function linkle(profile, info, nid, n_items){
 	if(profile.type == "aria2"){
 		var frag = info.pageUrl.indexOf("#");
 		var o = {referer: frag == -1 ? info.pageUrl : info.pageUrl.slice(0, frag)};
@@ -184,43 +186,30 @@ function linkle(profile, info){
 			}
 		}
 		get_cookies(profile.cookie, info.pageUrl, [info.linkUrl], r => {
-			console.log("cookies: \"" + r + "\"");
 			if(r != undefined && r.length > 0){
 				if(o.header == undefined){
 					o.header = ["Cookie: " + r];
 				}else{
 					o.header.push("Cookie: " + r);
 				}
+				n_items.push({title: "cookie", message: r});
+				chrome.notifications.update(nid, {items: n_items});
 			}
 			var url = profile.redirect == undefined ? info.linkUrl : profile.redirect;
 			a2addUri(profile.aria2_uri, profile.aria2_token, [url], o, function(r){
 				// console.log("aria2.addUri returned:", r.result);
-				chrome.notifications.create(null, {
-					type: "basic",
-					iconUrl: "icon.png",
-					title: profile.name,
-					message: "download added, GID = " + r.result
-				});
+				n_items.push({title: "GID", message: r.result});
+				chrome.notifications.update(nid, {items: n_items});
 			});
 		});
 	}else if(profile.type == "rpc"){
-		var nid = null;
 		xhr_stream("POST", profile.rpc_uri, info.linkUrl, function(r){
 			// console.log(profile.name + " returned:", r);
+			// handle carriage return and color codes by removing them
+			r = r.replace(/^.*\r(?!$)|\x1b\[[\d;]+[mK]/gm, "");
 			// seems like list notification only show 5 items
-			// TODO: handle carriage return and color codes
-			r = r.split("\n").map(l => l.trim()).filter(l => l.length).slice(-5).map(l => ({title: "", message: l}));
-			if(nid == null){
-				chrome.notifications.create(null, {
-					type: "list",
-					iconUrl: "icon.png",
-					title: profile.name,
-					message: "",
-					items: r
-				}, rnid => nid = rnid);
-			}else{
-				chrome.notifications.update(nid, { items: r });
-			}
+			r = r.split("\n").map(l => l.trim()).filter(l => l.length).map(l => ({title: "", message: l}));
+			chrome.notifications.update(nid, {items: n_items.concat(r).slice(-5)});
 		});
 	}else{
 		console.log("unknown profile: \"" + profile.type + "\"");
@@ -228,13 +217,24 @@ function linkle(profile, info){
 }
 
 function linkle_onClicked(info){
-	console.log(info.menuItemId, info.linkUrl);
-	chrome.storage.sync.get(info.menuItemId, r => {
-		var p = parse_profile(info.menuItemId, r[info.menuItemId]);
-		if(p == null){
-			return;
-		}
-		linkle(p, info);
+	// since notifications.update is actually overwriting this item list
+	let n_items = [{title: "", message: info.linkUrl}];
+	chrome.notifications.create(null, {
+		type: "list",
+		// I really need a better looking icon
+		iconUrl: "icon.png",
+		title: info.menuItemId,
+		message: "",
+		items: n_items
+	}, nid => {
+		chrome.storage.sync.get(info.menuItemId, r => {
+			var p = parse_profile(info.menuItemId, r[info.menuItemId]);
+			if(p == null){
+				n_items.push({title: "", message: "error parsing profile"});
+				chrome.notifications.update(nid, {items: n_items});
+			}
+			linkle(p, info, nid, n_items);
+		});
 	});
 }
 
