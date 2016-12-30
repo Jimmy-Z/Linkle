@@ -101,7 +101,7 @@ function get_cookies_parallel(urls, descs, cb){
 				}
 				console.log("chrome.cookies.getAll returned for \"" + url + "\": "
 					+ JSON.stringify(r));
-				ret.push(r)
+				ret.push(r);
 				if(ret.length == urls.length){
 					// since aria2 doesn't allow different header for multiple links
 					// I'm gonna merge them here
@@ -288,30 +288,40 @@ function parse_conf(conf){
 }
 
 function linkle_install(profiles){
-	chrome.contextMenus.removeAll(() => {
-		if(profiles.length == 0){
-			console.log("no profile found");
-			return;
-		}
-		profiles.forEach(p => {
-			console.log("installing profile \"" + p.name + "\"");
-			chrome.contextMenus.create({
-				id: p.name,
-				title: p.name,
-				contexts: ["link"],
-				// documentUrlPatterns: p.doc_patterns.split(" "),
-				targetUrlPatterns: p.link_patterns.split(" ")
-			}, () => {
-				if(chrome.runtime.lastError){
-					console.log("failed to create contextMenu \"" +
-						p.name + "\": " + chrome.runtime.lastError.message);
-				}
-			});
+	if(profiles.length == 0){
+		console.log("no profile found");
+		return;
+	}
+	profiles.forEach(p => {
+		console.log("installing profile \"" + p.name + "\"");
+		chrome.contextMenus.create({
+			id: p.name,
+			title: p.name,
+			contexts: ["link"],
+			// documentUrlPatterns: p.doc_patterns.split(" "),
+			targetUrlPatterns: p.link_patterns.split(" ")
+		}, () => {
+			if(chrome.runtime.lastError){
+				console.log("failed to create contextMenu \"" +
+					p.name + "\": " + chrome.runtime.lastError.message);
+			}
 		});
-		chrome.contextMenus.onClicked.addListener(linkle_onClicked);
 	});
 }
 
-chrome.storage.sync.get(null, r => {
-	linkle_install(parse_conf(r), false);
+chrome.runtime.onInstalled.addListener(() => {
+	chrome.storage.sync.get(null, r => {
+		linkle_install(parse_conf(r));
+	});
 });
+
+chrome.runtime.onMessage.addListener(msg => {
+	if(msg.conf == undefined){
+		return;
+	}
+	chrome.contextMenus.removeAll(() => {
+		linkle_install(parse_conf(msg.conf));
+	});
+});
+
+chrome.contextMenus.onClicked.addListener(linkle_onClicked);

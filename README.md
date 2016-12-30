@@ -31,12 +31,11 @@ Cookie handling
 * by default Linkle will send all cookies on current page.
 	* it's good for most situation, and it doesn't require extra permissions.
 	* but sometimes link and page are not on the same host/domain and the link requires different cookies.
-* if you set `cookie = link`, Linkle will get cookies exactly the link you click.
-	* will require extra permissions, Chrome will present you a popup about this.
+* if you set `cookie = link`, Linkle will get cookies exactly for the link you click.
+	* require extra permissions, Chrome will present you a popup about this.
 	* but it still doesn't work sometimes, since the link might redirect to a different host/domain and then it requires different cookies.
-* if you set `cookie = COOKIE_NAME@http://example.com`, Linke will get that cookie specifically.
-	* will require extra permissions too.
-	* you can specify multiple cookies, separate them by space.
+* if you set `cookie = COOKIE1@http://example.com COOKIE2@http://example.com`, Linkle will get those cookies specifically.
+	* require extra permissions too.
 	* yeah this is hacky.
 
 Change log
@@ -50,6 +49,7 @@ Change log
 * 0.1.3.1 hotfix for not loading default on first run.
 * 0.1.4 config import/export and some bug fixes around initializing and cookie handling.
 * 0.1.5 additional cookie handling method and again initialization bug fix.
+* 0.1.6 I think I finally got "nothing happens when clicked" fixed properly.
 
 Thanks
 ---
