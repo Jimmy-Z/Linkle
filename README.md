@@ -31,9 +31,11 @@ Cookie handling
 * by default Linkle will send all cookies on current page.
 	* it's good for most situation, and it doesn't require extra permissions.
 	* but sometimes link and page are not on the same host/domain and the link requires different cookies.
+	Linkle won't send cookie if link and page are not on the same domain.
 * if you set `cookie = link`, Linkle will get cookies exactly for the link you click.
 	* require extra permissions, Chrome will present you a popup about this.
 	* but it still doesn't work sometimes, since the link might redirect to a different host/domain and then it requires different cookies.
+	Tip: click the link, let chrome download it, the final/redirected link will show up in chrome://downloads.
 * if you set `cookie = COOKIE1@http://example.com COOKIE2@http://example.com`, Linkle will get those cookies specifically.
 	* require extra permissions too.
 	* yeah this is hacky.
@@ -50,6 +52,9 @@ Change log
 * 0.1.4 config import/export and some bug fixes around initializing and cookie handling.
 * 0.1.5 additional cookie handling method and again initialization bug fix.
 * 0.1.6 I think I finally got "nothing happens when clicked" fixed properly.
+* 0.1.7 more verbose via notification and cookie handling fix again.
+* 0.1.8 a button in options page to revoke permissions,
+and a fix for cookie handling breakage caused by notification introduced in 0.1.7
 
 Thanks
 ---

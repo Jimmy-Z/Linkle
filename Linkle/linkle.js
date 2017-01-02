@@ -217,24 +217,24 @@ function linkle(profile, info, nid, n_items){
 }
 
 function linkle_onClicked(info){
-	// since notifications.update is actually overwriting this item list
+	let nid = info.menuItemId + " " + Math.random();
+	// since notifications.update is overwriting this item list, I'm passing it down
 	let n_items = [{title: "", message: info.linkUrl}];
-	chrome.notifications.create(null, {
+	chrome.notifications.create(nid, {
 		type: "list",
 		// I really need a better looking icon
 		iconUrl: "icon.png",
 		title: info.menuItemId,
 		message: "",
 		items: n_items
-	}, nid => {
-		chrome.storage.sync.get(info.menuItemId, r => {
-			var p = parse_profile(info.menuItemId, r[info.menuItemId]);
-			if(p == null){
-				n_items.push({title: "", message: "error parsing profile"});
-				chrome.notifications.update(nid, {items: n_items});
-			}
-			linkle(p, info, nid, n_items);
-		});
+	});
+	chrome.storage.sync.get(info.menuItemId, r => {
+		var p = parse_profile(info.menuItemId, r[info.menuItemId]);
+		if(p == null){
+			n_items.push({title: "", message: "error parsing profile"});
+			chrome.notifications.update(nid, {items: n_items});
+		}
+		linkle(p, info, nid, n_items);
 	});
 }
 
@@ -311,7 +311,12 @@ function linkle_install(profiles){
 
 chrome.runtime.onInstalled.addListener(() => {
 	chrome.storage.sync.get(null, r => {
-		linkle_install(parse_conf(r));
+		var conf = parse_conf(r);
+		if(conf.length == 0){
+			chrome.tabs.create({"url": "chrome://extensions/?options=" + chrome.runtime.id});
+		}else{
+			linkle_install(parse_conf(r));
+		}
 	});
 });
 

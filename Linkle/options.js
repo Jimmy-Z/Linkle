@@ -150,32 +150,30 @@ window.onload = function(){
 	flask.run("#id_conf", {language: "ini"});
 	read_file("example.ini", example_conf => {
 		var ex = document.getElementById("id_example_code");
-		console.log("loaded example conf: \"" + example_conf + "\"");
+		// console.log("loaded example conf: \"" + example_conf + "\"");
 		ex.textContent = example_conf;
 		Prism.highlightElement(ex);
 		load_conf(conf => {
-			console.log("loaded conf: \"" + conf + "\"");
+			// console.log("loaded conf: \"" + conf + "\"");
 			flask.update(conf == "" ? example_conf : conf);
 			flask.textarea.focus();
 		});
 	});
-	function show(){
-		for (var i = 0; i < arguments.length; ++i){
-			document.getElementById(arguments[i]).removeAttribute("hidden");
-		}
+	function show(ids){
+		ids.forEach(id => document.getElementById(id).removeAttribute("hidden"));
 	}
-	function hide(){
-		for (var i = 0; i < arguments.length; ++i){
-			document.getElementById(arguments[i]).setAttribute("hidden", null);
-		}
+	function hide(ids){
+		ids.forEach(id => document.getElementById(id).setAttribute("hidden", true));
 	}
+	const NORMAL_MODE_IDS = ["id_conf", "id_save", "id_import", "id_export", "id_revoke", "id_show_example"];
+	const EXAMPLE_MODE_IDS = ["id_example", "id_hide_example"];
 	document.getElementById("id_show_example").addEventListener("click", () => {
-		hide("id_conf", "id_save", "id_import", "id_export", "id_show_example");
-		show("id_example", "id_hide_example");
+		hide(NORMAL_MODE_IDS);
+		show(EXAMPLE_MODE_IDS);
 	});
 	document.getElementById("id_hide_example").addEventListener("click", () => {
-		hide("id_example", "id_hide_example");
-		show("id_conf", "id_save", "id_import", "id_export", "id_show_example");
+		hide(EXAMPLE_MODE_IDS);
+		show(NORMAL_MODE_IDS);
 	});
 	document.getElementById("id_save").addEventListener("click", () => {
 		save_conf(flask.textarea.value, () => {
@@ -211,5 +209,15 @@ window.onload = function(){
 		a.href = "data:application/octet-stream;base64," + b64;
 		a.download = "config.ini";
 		a.click();
+	});
+	document.getElementById("id_revoke").addEventListener("click", () => {
+		chrome.permissions.getAll(perms => {
+			chrome.permissions.remove({
+				permissions: ["cookies"],
+				origins: perms.origins
+			}, () => {
+				popup(document.body, "all previously acquired optional permissions have been revoked");
+			});
+		});
 	});
 };
