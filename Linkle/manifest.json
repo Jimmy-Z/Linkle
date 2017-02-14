@@ -1,7 +1,7 @@
 {
 	"manifest_version": 2,
 	"name": "Linkle",
-	"version": "0.1.8",
+	"version": "0.1.9",
 	"description": "Send link to aria2 RPC",
 	"icons": { "64": "icon.png" },
 	"background": { "scripts": ["linkle.js"], "persistent": false},

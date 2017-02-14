@@ -287,46 +287,66 @@ function parse_conf(conf){
 	return profiles;
 }
 
-function linkle_install(profiles){
-	if(profiles.length == 0){
-		console.log("no profile found");
-		return;
-	}
-	profiles.forEach(p => {
-		console.log("installing profile \"" + p.name + "\"");
-		chrome.contextMenus.create({
-			id: p.name,
-			title: p.name,
-			contexts: ["link"],
-			// documentUrlPatterns: p.doc_patterns.split(" "),
-			targetUrlPatterns: p.link_patterns.split(" ")
-		}, () => {
-			if(chrome.runtime.lastError){
-				console.log("failed to create contextMenu \"" +
-					p.name + "\": " + chrome.runtime.lastError.message);
-			}
+function make_context_menu_properties(profile){
+	return {
+		id: profile.name,
+		title: profile.name,
+		contexts: ["link"],
+		targetUrlPatterns: profile.link_patterns.split(" ")
+	};
+}
+
+function linkle_onInstalled(){
+	chrome.storage.sync.get(null, r => {
+		let profiles = parse_conf(r);
+		if(profiles.length == 0){
+			chrome.tabs.create({"url": "chrome://extensions/?options=" + chrome.runtime.id});
+			return;
+		}
+		profiles.forEach(p => {
+			console.log("creating menu \"" + p.name + "\"");
+			chrome.contextMenus.create(make_context_menu_properties(p), () => {
+				if(chrome.runtime.lastError){
+					console.log("failed to create contextMenu \"" +
+						p.name + "\": " + chrome.runtime.lastError.message);
+				}
+			});
 		});
 	});
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-	chrome.storage.sync.get(null, r => {
-		var conf = parse_conf(r);
-		if(conf.length == 0){
-			chrome.tabs.create({"url": "chrome://extensions/?options=" + chrome.runtime.id});
-		}else{
-			linkle_install(parse_conf(r));
+function linkle_onChanged(changes){
+	console.log("onChange:\n" + (Object.keys(changes).map(k => k + ": " + JSON.stringify(changes[k])).join("\n")));
+	for(let k in changes){
+		if(k == "profiles"){
+			continue;
 		}
-	});
-});
-
-chrome.runtime.onMessage.addListener(msg => {
-	if(msg.conf == undefined){
-		return;
+		let err_cb = function(){
+			if(chrome.runtime.lastError){
+				console.log("failed to create/update/remove contextMenu \"" +
+					k + "\": " + chrome.runtime.lastError.message);
+			}
+		};
+		let v = changes[k];
+		if(v.newValue !== undefined){
+			let p = make_context_menu_properties(parse_profile(k, v.newValue));
+			if(v.oldValue === undefined){
+				console.log("creating menu \"" + k + "\"");
+				chrome.contextMenus.create(p, err_cb);
+			}else{
+				delete p.id;
+				console.log("updating menu \"" + k + "\"");
+				chrome.contextMenus.update(k, p, err_cb);
+			}
+		}else{
+			console.log("removing menu \"" + k + "\"");
+			chrome.contextMenus.remove(k, err_cb);
+		}
 	}
-	chrome.contextMenus.removeAll(() => {
-		linkle_install(parse_conf(msg.conf));
-	});
-});
+}
+
+chrome.runtime.onInstalled.addListener(linkle_onInstalled);
 
 chrome.contextMenus.onClicked.addListener(linkle_onClicked);
+
+chrome.storage.onChanged.addListener(linkle_onChanged);

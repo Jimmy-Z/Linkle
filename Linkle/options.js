@@ -96,10 +96,6 @@ function save_conf(conf, cb){
 				if(cb){
 					cb();
 				}
-				if(to_be_removed.length > 0 || !is_empty(to_be_set)){
-					// chrome.runtime.reload();
-					chrome.runtime.sendMessage({conf: conf_object});
-				}
 			});
 		});
 	});

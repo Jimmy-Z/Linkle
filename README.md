@@ -35,7 +35,7 @@ Cookie handling
 * if you set `cookie = link`, Linkle will get cookies exactly for the link you click.
 	* require extra permissions, Chrome will present you a popup about this.
 	* but it still doesn't work sometimes, since the link might redirect to a different host/domain and then it requires different cookies.
-	Tip: click the link, let chrome download it, the final/redirected link will show up in chrome://downloads.
+	Tip: click the link, let chrome download it, the final/redirected link will show up in [chrome://downloads](chrome://downloads).
 * if you set `cookie = COOKIE1@http://example.com COOKIE2@http://example.com`, Linkle will get those cookies specifically.
 	* require extra permissions too.
 	* yeah this is hacky.
@@ -54,7 +54,8 @@ Change log
 * 0.1.6 I think I finally got "nothing happens when clicked" fixed properly.
 * 0.1.7 more verbose via notification and cookie handling fix again.
 * 0.1.8 a button in options page to revoke permissions,
-and a fix for cookie handling breakage caused by notification introduced in 0.1.7
+and a fix for cookie handling breakage caused by notification introduced in 0.1.7.
+* 0.1.9 handles sync properly.
 
 Thanks
 ---
