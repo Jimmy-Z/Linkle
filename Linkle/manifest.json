@@ -1,13 +1,31 @@
 {
-	"manifest_version": 2,
+	"manifest_version": 3,
 	"name": "Linkle",
-	"version": "0.1.9",
+	"version": "0.2.0",
 	"description": "Send link to aria2 RPC",
-	"icons": { "64": "icon.png" },
-	"background": { "scripts": ["linkle.js"], "persistent": false},
-	"options_ui": { "page": "options.html" },
-	"permissions": [ "contextMenus", "notifications", "storage", "activeTab"],
-	"optional_permissions": ["cookies", "http://*/", "https://*/"],
+	"icons": {
+		"64": "icon.png"
+	},
+	"background": {
+		"service_worker": "linkle.js",
+		"type": "module"
+	},
+	"options_ui": {
+		"page": "options.html"
+	},
+	"permissions": [
+		"contextMenus",
+		"notifications",
+		"storage",
+		"activeTab"
+	],
+	"optional_permissions": [
+		"cookies"
+	],
+	"optional_host_permissions": [
+		"http://*/",
+		"https://*/"
+	],
 	"short_name": "Linkle",
 	"homepage_url": "https://github.com/Jimmy-Z/Linkle"
 }
