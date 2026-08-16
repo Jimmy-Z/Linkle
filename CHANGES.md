@@ -1,3 +1,5 @@
+* 0.2.1 retry transient RPC failures with timeout and backoff,
+and report failures in the notification instead of dropping links silently.
 * 0.2.0 migrated to MV3, generic RPC is dropped, cookie functionality is not tested yet.
 * 0.1.9 handles sync properly.
 and a fix for cookie handling breakage caused by notification introduced in 0.1.7.

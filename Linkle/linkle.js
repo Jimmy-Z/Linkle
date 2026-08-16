@@ -1,16 +1,80 @@
 "use strict";
 
+// RPC request timeout and retry settings
+var RPC_TIMEOUT = 10 * 1000;
+var RPC_RETRIES = 2;
+var RPC_RETRY_DELAYS = [1000, 2000];
+
 // since xhr is deprecated, this a polyfill
 function xhr(method, url, data, callback) {
-	fetch(url, { method: method, body: data })
+	var controller = new AbortController();
+	var timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
+	var done = false;
+
+	function finish(e, r) {
+		if (done) {
+			return;
+		}
+		done = true;
+		clearTimeout(timer);
+		callback(e, r);
+	}
+
+	fetch(url, { method: method, body: data, signal: controller.signal })
 		.then(r => {
-			if (r.status == 200 || r.status == 204) {
-				return r.text();
-			} else {
-				console.error(method, url, r.status, r.statusText);
+			if (r.status != 200 && r.status != 204) {
+				throw { kind: "http", status: r.status, statusText: r.statusText };
 			}
-		}, e => console.error(method, url, e))
-		.then(r => callback(r), e => console.error(method, url, e));
+			return r.text();
+		})
+		.then(text => JSON.parse(text))
+		.then(r => finish(null, r))
+		.catch(e => {
+			var err = normalize_error(e);
+			console.error(method, url, err);
+			finish(err, null);
+		});
+}
+
+function normalize_error(e) {
+	if (e == null) {
+		return { kind: "network", message: "unknown error" };
+	}
+	if (e.name == "AbortError") {
+		return { kind: "timeout", message: "request timed out" };
+	}
+	if (e.kind != undefined) {
+		return e;
+	}
+	if (e instanceof SyntaxError) {
+		return { kind: "json", message: "invalid JSON response" };
+	}
+	return { kind: "network", message: e.message || String(e) };
+}
+
+function should_retry(e) {
+	if (e.kind == "rpc" || e.kind == "json") {
+		return false;
+	}
+	if (e.kind == "http" && e.status >= 400 && e.status < 500 && e.status != 408 && e.status != 429) {
+		return false;
+	}
+	return true;
+}
+
+function describe_error(e) {
+	switch (e.kind) {
+		case "http":
+			return "HTTP " + e.status + (e.statusText != null ? " " + e.statusText : "");
+		case "rpc":
+			return e.message != undefined ? e.message : "aria2 error";
+		case "timeout":
+			return "request timed out";
+		case "json":
+			return "invalid JSON response";
+		default:
+			return e.message != undefined ? e.message : "unknown error";
+	}
 }
 
 function a2rpc(uri, token, method, args, callback) {
@@ -20,7 +84,23 @@ function a2rpc(uri, token, method, args, callback) {
 		method: "aria2." + method,
 		params: (token != null ? ["token:" + token] : []).concat(args)
 	});
-	xhr("POST", uri, post_data, r => callback(JSON.parse(r)));
+
+	function attempt(n) {
+		xhr("POST", uri, post_data, (e, r) => {
+			if (e == null && r.error != null) {
+				e = { kind: "rpc", code: r.error.code, message: r.error.message };
+			}
+			if (e != null && should_retry(e) && n < RPC_RETRIES) {
+				setTimeout(() => attempt(n + 1), RPC_RETRY_DELAYS[n]);
+				return;
+			}
+			if (e != null) {
+				e.attempts = n + 1;
+			}
+			callback(e, r);
+		});
+	}
+	attempt(0);
 }
 
 function a2addUri(uri, token, uris, options, callback) {
@@ -66,7 +146,7 @@ function get_page_cookie(page_url, urls, cb) {
 	}
 	chrome.tabs.executeScript({ code: "document.cookie" }, (r) => {
 		if (chrome.runtime.lastError) {
-			chrome.log("chrome.tabs.executeScript failed: " + chrome.runtime.lastError.message);
+			console.log("chrome.tabs.executeScript failed: " + chrome.runtime.lastError.message);
 			cb();
 		} else {
 			cb(r[0]);
@@ -178,8 +258,20 @@ function linkle(profile, info, nid, n_items) {
 				chrome.notifications.update(nid, { items: n_items });
 			}
 			var url = profile.redirect == undefined ? info.linkUrl : profile.redirect;
-			a2addUri(profile.aria2_uri, profile.aria2_token, [url], o, function (r) {
-				// console.log("aria2.addUri returned:", r.result);
+			a2addUri(profile.aria2_uri, profile.aria2_token, [url], o, function (e, r) {
+				if (e != null) {
+					var msg = describe_error(e);
+					if (e.attempts != null) {
+						msg += " (after " + e.attempts + " attempts)";
+					}
+					n_items.push({ title: "error", message: msg });
+					if (e.kind == "network" || e.kind == "timeout") {
+						n_items.push({ title: "error", message: "may already be added, check for duplicates" });
+					}
+					console.error("aria2.addUri failed:", e);
+					chrome.notifications.update(nid, { items: n_items });
+					return;
+				}
 				n_items.push({ title: "GID", message: r.result });
 				chrome.notifications.update(nid, { items: n_items });
 			});
@@ -206,6 +298,7 @@ function linkle_onClicked(info) {
 		if (p == null) {
 			n_items.push({ title: "", message: "error parsing profile" });
 			chrome.notifications.update(nid, { items: n_items });
+			return;
 		}
 		linkle(p, info, nid, n_items);
 	});
