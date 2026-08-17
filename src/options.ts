@@ -1,135 +1,121 @@
-"use strict";
+import { is_array_of_str, is_empty } from "./common";
 
-function is_empty(o){
-	for(var k in o){
-		if(o.hasOwnProperty(k)){
-			return false;
-		}
+async function read_extension_file(path: string): Promise<string> {
+	// there's also chrome.runtime.getPackageDirectoryEntry
+	// but api around that thing doesn't support async, yet, as of aug 2026
+	const url: string = chrome.runtime.getURL(path);
+	const resp = await fetch(url);
+	if (!resp.ok) {
+		throw new Error(
+			`error fetching ${path} ${resp.status}: ${resp.statusText}`,
+		);
 	}
-	return true;
+	return await resp.text();
 }
 
-function read_file(fn, cb){
-	/* HTML5 FileSystem API is a rejected proposal but available on Chrome
-	 * Chrome didn't provide an direct API to access files in extension
-	 * so, this or XMLHttpRequest, what do you think?
-	 */
-	chrome.runtime.getPackageDirectoryEntry(root => {
-		root.getFile(fn, {}, fe => {
-			fe.file(f => {
-				var reader = new FileReader();
-				reader.onloadend = () =>{
-					cb(reader.result);
-				};
-				reader.readAsText(f);
-			}, e => console.log(e));
-		}, e => console.log(e));
-	});
-}
-
-function log_chrome_error(prefix){
-	if(chrome.extension.lastError){
-		console.log(prefix + chrome.extension.lastError);
-	}
-}
-
-function save_conf(conf, cb){
-	var profile_names = [];
-	var profiles = [];
-	conf.split("\n").map(l => l.trim()).filter(l => l.length).forEach(l => {
-		if(/^\[[^\[\],]+\]$/.test(l)){
-			profile_names.push(l.slice(1, -1).trim());
-			profiles.push([]);
-		}else{
-			var content = profiles[profiles.length - 1];
-			if(content){
-				content.push(l);
+async function conf_to_sync(conf: string) {
+	const profile_names: string[] = [];
+	const profile_names_set: Set<string> = new Set();
+	const profiles: string[][] = [];
+	conf
+		.split("\n")
+		.map((l) => l.trim())
+		.filter((l) => l.length)
+		.forEach((l) => {
+			if (/^\[[^\[\],]+\]$/.test(l)) {
+				const name: string = l.slice(1, -1).trim();
+				profile_names.push(name);
+				profile_names_set.add(name);
+				profiles.push([]);
+			} else {
+				const lines = profiles[profiles.length - 1];
+				if (lines) {
+					lines.push(l);
+				}
 			}
-		}
-	});
-	if(profiles.length == 0){
+		});
+	if (profiles.length == 0) {
+		console.warn("no profile configured");
 		return;
 	}
-	var conf_object = {};
-	profile_names.forEach((n, i) => {
-		conf_object[n] = profiles[i].join("\n");
+
+	const sync = await chrome.storage.sync.get(null);
+
+	// remove
+	const to_remove = [];
+	for (const k in sync) {
+		// profiles are stored in sync with a prefix
+		if (k.startsWith("p.")) {
+			const name = k.slice(2);
+			if (!profile_names_set.has(name)) {
+				console.info(`sync: profile ${k.slice(2)} is gone`);
+				to_remove.push(k);
+			}
+		}
+	}
+	if (to_remove.length > 0) {
+		await chrome.storage.sync.remove(to_remove);
+	}
+
+	// new/update
+	const to_set: { [_: string]: string[] } = {};
+	profile_names.forEach((name, i) => {
+		const sync_name = `p.${name}`;
+		const synced = sync[sync_name];
+		const neo: string[] = profiles[i];
+		if (synced != neo) {
+			if (synced === undefined) {
+				console.info(`sync: new profile ${name}`);
+			} else {
+				console.info(`sync: profile ${name} is modified`);
+			}
+			to_set[sync_name] = neo;
+		}
 	});
-	// assign this at last to make sure it won't get overwritten by a profile named "profiles"
-	conf_object.profiles = profile_names.join(",");
-	// TODO: exception handling
-	chrome.storage.sync.get(null, r => {
-		var to_be_removed = [], to_be_set = {};
-		// minimize write operations to sync, since it might impact sync performance?
-		for(var k in r){
-			if (conf_object[k] === undefined){
-				to_be_removed.push(k);
-			}
-		}
-		for(k in conf_object){
-			var v = conf_object[k];
-			if(v != r[k]){
-				to_be_set[k] = v;
-			}
-		}
-		function sync_remove(removed_cb){
-			if(to_be_removed.length > 0){
-				chrome.storage.sync.remove(to_be_removed, () => {
-					log_chrome_error("chrome.storage.sync.remove failed: ");
-					removed_cb();
-				});
-			}else{
-				removed_cb();
-			}
-		}
-		function sync_set(set_cb){
-			if(!is_empty(to_be_set)){
-				chrome.storage.sync.set(to_be_set, () => {
-					log_chrome_error("chrome.storage.sync.set failed: ");
-					set_cb();
-				});
-			}else{
-				set_cb();
-			}
-		}
-		sync_remove(() => {
-			sync_set(() => {
-				if(cb){
-					cb();
-				}
-			});
-		});
-	});
+	if (sync["profiles"] != profile_names) {
+		to_set["profiles"] = profile_names;
+	}
+	if (!is_empty(to_set)) {
+		await chrome.storage.sync.set(to_set);
+	}
+
+	if (to_remove.length == 0 && is_empty(to_set)) {
+		console.info("sync: no change");
+	}
 }
 
-function load_conf(cb){
-	chrome.storage.sync.get(null, r => {
-		if(r.profiles == undefined || r.profiles.length == 0){
-			cb("");
-		}
-		var names = r.profiles.split(",").filter(n => n.length);
-		if(names.length > 0){
-			var profiles = [];
-			names.forEach(n => {
-				profiles.push("[" + n + "]\n" + r[n]);
-			});
-			cb(profiles.join(["\n\n"]));
-		}else{
-			cb("");
+async function conf_from_sync_as_str(): Promise<string> {
+	let sync = await chrome.storage.sync.get(null);
+	if (!is_array_of_str(sync.profiles) || sync.profiles.length == 0) {
+		return "";
+	}
+	const names = sync.profiles;
+	const conf: string[] = [];
+	names.forEach((n) => {
+		const prof = sync[`p.${n}`];
+		if (is_array_of_str(prof)) {
+			conf.push(`[${n}]`, ...prof);
+		} else {
+			console.assert(false);
 		}
 	});
+	return conf.join("\n");
 }
 
-function popup(parent, msg, cb){
+function popup(parent: Node, msg: string, cb?: () => void) {
 	var pop = document.createElement("div");
+	pop.className = "popup";
+
 	var div_msg = document.createElement("div");
 	div_msg.appendChild(document.createTextNode(msg));
 	pop.appendChild(div_msg);
+
 	var button = document.createElement("button");
 	button.appendChild(document.createTextNode("OK"));
 	pop.appendChild(button);
-	pop.className = "popup";
+
 	button.addEventListener("click", () => {
-		if(cb){
+		if (cb) {
 			cb();
 		}
 		parent.removeChild(pop);
@@ -137,83 +123,104 @@ function popup(parent, msg, cb){
 	button.addEventListener("blur", () => {
 		parent.removeChild(pop);
 	});
+
 	parent.appendChild(pop);
 	button.focus();
 }
 
-window.onload = function(){
-	var flask = new CodeFlask;
-	flask.run("#id_conf", {language: "ini"});
-	read_file("example.ini", example_conf => {
-		var ex = document.getElementById("id_example_code");
-		// console.log("loaded example conf: \"" + example_conf + "\"");
-		ex.textContent = example_conf;
-		Prism.highlightElement(ex);
-		load_conf(conf => {
-			// console.log("loaded conf: \"" + conf + "\"");
-			flask.update(conf == "" ? example_conf : conf);
-			flask.textarea.focus();
-		});
-	});
-	function show(ids){
-		ids.forEach(id => document.getElementById(id).removeAttribute("hidden"));
+window.onload = async function () {
+	let example_str = await read_extension_file("example.ini");
+	var ex = document.getElementById("id_example") as HTMLTextAreaElement;
+	// console.log("loaded example conf: \"" + example_conf + "\"");
+	ex.textContent = example_str;
+
+	let conf_str = await conf_from_sync_as_str();
+	// console.log("loaded conf: \"" + conf + "\"");
+	let conf = document.getElementById("id_conf") as HTMLTextAreaElement;
+	function update_editor(c: string) {
+		conf.textContent = c;
 	}
-	function hide(ids){
-		ids.forEach(id => document.getElementById(id).setAttribute("hidden", true));
-	}
-	const NORMAL_MODE_IDS = ["id_conf", "id_save", "id_import", "id_export", "id_revoke", "id_show_example"];
+	update_editor(conf_str === "" ? example_str : conf_str);
+	conf.focus();
+
+	// switch between conf mode and example mode
+	const NORMAL_MODE_IDS = [
+		"id_conf",
+		"id_save",
+		"id_import",
+		"id_export",
+		"id_revoke",
+		"id_show_example",
+	];
 	const EXAMPLE_MODE_IDS = ["id_example", "id_hide_example"];
-	document.getElementById("id_show_example").addEventListener("click", () => {
-		hide(NORMAL_MODE_IDS);
-		show(EXAMPLE_MODE_IDS);
+	button("id_show_example", () => {
+		set_attr(NORMAL_MODE_IDS, "hide", "true");
+		remove_attr(EXAMPLE_MODE_IDS, "hide");
 	});
-	document.getElementById("id_hide_example").addEventListener("click", () => {
-		hide(EXAMPLE_MODE_IDS);
-		show(NORMAL_MODE_IDS);
+	button("id_hide_example", () => {
+		set_attr(EXAMPLE_MODE_IDS, "hide", "true");
+		remove_attr(NORMAL_MODE_IDS, "hide");
 	});
-	document.getElementById("id_save").addEventListener("click", () => {
-		save_conf(flask.textarea.value, () => {
-			popup(document.body, "conf saved", () => {
-				window.close();
-			});
+
+	button("id_save", async () => {
+		await conf_to_sync(conf.textContent);
+		popup(document.body, "conf saved", () => {
+			window.close();
 		});
 	});
-	document.getElementById("id_import").addEventListener("click", () => {
-		var input = document.createElement("input");
+
+	button("id_import", () => {
+		const input = document.createElement("input");
 		input.type = "file";
 		input.accept = ".ini";
-		input.addEventListener("change", evt => {
-			var f = evt.target.files[0];
-			// console.log(f.name);
-			var r = new FileReader();
-			r.onload = e => {
-				flask.update(e.target.result);
-			};
-			r.readAsText(f);
-		});
+		input.onchange = async (evt) => {
+			const f = (evt.target as HTMLInputElement).files;
+			if (!f || !f[0]) {
+				console.info("no file");
+				return;
+			}
+			// console.log(f[0].name);
+			update_editor(await f[0].text());
+		};
 		input.click();
 	});
-	document.getElementById("id_export").addEventListener("click", () => {
-		/* btoa doesn't work for Unicode, an article on mozilla suggest TextEncoderLite and base64-js
-		 * actually String.formCharCode then btoa works correctly for uint8Array, so no need for base64-js
-		 * tested on Chrome 55 and Firefox 50, and atob then .charCodeAt also works for decoding
-		 * and TextEncoder is experimental but available since Chrome 38, so no need for TextEncoderLite
-		 */
-		var b64 = window.btoa(String.fromCharCode.apply(null, new TextEncoder("utf-8").encode(flask.textarea.value)));
+
+	button("id_export", () => {
 		var a = document.createElement("a");
-		// it defaults to text/plain;charset=US-ASCII, while I'm actually using utf-8
-		a.href = "data:application/octet-stream;base64," + b64;
+		a.href =
+			// default to text/plain;charset=US-ASCII
+			"data:text/plain;charset=UTF-8," +
+			encodeURIComponent(conf.textContent);
 		a.download = "config.ini";
 		a.click();
 	});
-	document.getElementById("id_revoke").addEventListener("click", () => {
-		chrome.permissions.getAll(perms => {
-			chrome.permissions.remove({
-				permissions: ["cookies"],
-				origins: perms.origins
-			}, () => {
-				popup(document.body, "all previously acquired optional permissions have been revoked");
-			});
+
+	button("id_revoke", async () => {
+		const perms = await chrome.permissions.getAll();
+		await chrome.permissions.remove({
+			permissions: ["cookies"],
+			origins: perms.origins,
 		});
+		popup(
+			document.body,
+			"all previously acquired optional permissions revoked",
+		);
 	});
 };
+
+function button(id: string, listener: () => void) {
+	const btn = document.getElementById(id) as HTMLButtonElement;
+	btn.addEventListener("click", listener);
+}
+
+function remove_attr(ids: string[], attr: string) {
+	ids.forEach((id) =>
+		(document.getElementById(id) as HTMLElement).removeAttribute(attr),
+	);
+}
+
+function set_attr(ids: string[], attr: string, v: string) {
+	ids.forEach((id) =>
+		(document.getElementById(id) as HTMLElement).setAttribute(attr, v),
+	);
+}

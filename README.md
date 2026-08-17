@@ -19,7 +19,7 @@ Downsides
 ---
 * It doesn't have a configuration GUI with flip switches and sliders,
 you have to write old school INI style config.
-	* There is an [example](https://github.com/Jimmy-Z/Linkle/blob/master/Linkle/example.conf).
+	* There is an [example](https://github.com/Jimmy-Z/Linkle/blob/master/Linkle/example.ini).
 	* Hey it has syntax highlights! [it's something!](http://knowyourmeme.com/memes/its-something)
 	* I won't fix this.
 * It has no control over the download procedure afterwards,
