@@ -1,7 +1,6 @@
-
-import { is_array_of_str } from "./common";
-import { a2addUri } from "./rpc";
-import { get_cookies } from "./cookie";
+import { is_array_of_str } from "./common.js";
+import { a2addUri } from "./rpc.js";
+import { get_cookies } from "./cookie.js";
 
 chrome.runtime.onInstalled.addListener(installed);
 chrome.contextMenus.onClicked.addListener(clicked);
@@ -35,40 +34,57 @@ async function linkle(
 		if (cookie.length > 0) {
 			if (o.header == undefined) {
 				o.header = ["Cookie: " + cookie];
-			} else if (is_array_of_str(o.header)) {
-				o.header.push("Cookie: " + cookie);
 			} else {
-				console.assert(false);
+				(o.header as string[]).push("Cookie: " + cookie);
 			}
-			n_items.push({ title: "cookie", message: cookie });
+		}
+		const gid = await a2addUri(
+			profile.url,
+			profile.token,
+			[link],
+			o,
+			parseInt(profile.timeout),
+		);
+		if (gid.length > 0) {
+			n_items.push({ title: "GID", message: gid });
 			chrome.notifications.update(nid, { items: n_items });
 		}
 	} else {
-		console.warn(`unknown profile: "${profile.type}"`);
+		console.error(`unknown profile type: "${profile.type}"`);
 	}
 }
 
 async function clicked(info: chrome.contextMenus.OnClickData) {
-	// since notifications.update overwrites this item list, I'm passing it down
-	const n_items: chrome.notifications.NotificationItem[] = [];
+	const profile_name = info.menuItemId as string;
 	// https://developer.chrome.com/docs/extensions/reference/api/notifications#type-NotificationOptions
-	const name = info.menuItemId as string;
+	// since notifications.update overwrites this item list, I'm passing it down
+	const n_items: chrome.notifications.NotificationItem[] = [
+		{
+			title: "link",
+			message: info.linkUrl as string,
+		},
+	];
+	// note: items can't be empty
 	const n_opts: chrome.notifications.NotificationCreateOptions = {
 		type: "list",
-		title: name,
-		message: info.linkUrl as string,
+		title: profile_name,
+		message: "",
 		iconUrl: "icon.png",
 		items: n_items,
 	};
 	const nid = await chrome.notifications.create(n_opts);
-	const sync_name = `p.${name}`;
+
+	const sync_name = `p.${profile_name}`;
 	const r = await chrome.storage.sync.get(sync_name);
-	const p = parse_profile(name, r[sync_name] as string[]);
-		if (p == null) {
-			n_items.push({ title: "", message: "error parsing profile" });
-			chrome.notifications.update(nid, { items: n_items });
+	const profile = parse_profile(profile_name, r[sync_name] as string[]);
+	if (profile == null) {
+		n_items.push({
+			title: "",
+			message: `error parsing profile "${profile_name}"`,
+		});
+		chrome.notifications.update(nid, { items: n_items });
 	} else {
-		linkle(p, info.linkUrl as string, info.pageUrl, nid, n_items);
+		linkle(profile, info.linkUrl as string, info.pageUrl, nid, n_items);
 	}
 }
 
@@ -91,10 +107,8 @@ function parse_profile(name: string, conf: string[]): Profile | null {
 			const prev = p[k];
 			if (prev === undefined) {
 				p[k] = [v];
-			} else if (is_array_of_str(prev)) {
-				prev.push(v);
 			} else {
-				console.assert(false);
+				(prev as string[]).push(v);
 			}
 		} else {
 			p[k] = v;
@@ -107,7 +121,7 @@ function parse_profile(name: string, conf: string[]): Profile | null {
 		name: name,
 		type: p["type"],
 		...p,
-	}
+	};
 }
 
 function parse_conf(synced: { [key: string]: any }): Profile[] {

@@ -1,19 +1,7 @@
-import { is_array_of_str, is_empty } from "./common";
-
-async function read_extension_file(path: string): Promise<string> {
-	// there's also chrome.runtime.getPackageDirectoryEntry
-	// but api around that thing doesn't support async, yet, as of aug 2026
-	const url: string = chrome.runtime.getURL(path);
-	const resp = await fetch(url);
-	if (!resp.ok) {
-		throw new Error(
-			`error fetching ${path} ${resp.status}: ${resp.statusText}`,
-		);
-	}
-	return await resp.text();
-}
+import { equal_array_of_str, is_array_of_str, is_empty } from "./common.js";
 
 async function conf_to_sync(conf: string) {
+	// console.debug(conf);
 	const profile_names: string[] = [];
 	const profile_names_set: Set<string> = new Set();
 	const profiles: string[][] = [];
@@ -63,42 +51,49 @@ async function conf_to_sync(conf: string) {
 		const sync_name = `p.${name}`;
 		const synced = sync[sync_name];
 		const neo: string[] = profiles[i];
-		if (synced != neo) {
-			if (synced === undefined) {
-				console.info(`sync: new profile ${name}`);
-			} else {
-				console.info(`sync: profile ${name} is modified`);
-			}
+		let set = false;
+		if (synced === undefined) {
+			console.info(`sync: new profile ${name}`);
+			set = true;
+		} else if (!equal_array_of_str(synced as string[], neo)) {
+			console.info(`sync: profile ${name} is modified`);
+			set = true;
+		}
+		// console.debug(synced);
+		// console.debug(neo);
+		if (set) {
 			to_set[sync_name] = neo;
 		}
 	});
-	if (sync["profiles"] != profile_names) {
+	if (!equal_array_of_str(sync["profiles"] as string[], profile_names)) {
 		to_set["profiles"] = profile_names;
 	}
 	if (!is_empty(to_set)) {
 		await chrome.storage.sync.set(to_set);
 	}
 
-	if (to_remove.length == 0 && is_empty(to_set)) {
-		console.info("sync: no change");
-	}
+	return to_remove.length > 0 || !is_empty(to_set);
 }
 
 async function conf_from_sync_as_str(): Promise<string> {
 	let sync = await chrome.storage.sync.get(null);
-	if (!is_array_of_str(sync.profiles) || sync.profiles.length == 0) {
+	if (
+		!is_array_of_str(sync.profiles, 'sync["profiles"]') ||
+		sync.profiles.length == 0
+	) {
 		return "";
 	}
 	const names = sync.profiles;
 	const conf: string[] = [];
 	names.forEach((n) => {
 		const prof = sync[`p.${n}`];
-		if (is_array_of_str(prof)) {
+		if (is_array_of_str(prof, `sync["p.${n}"]`)) {
 			conf.push(`[${n}]`, ...prof);
 		} else {
 			console.assert(false);
 		}
 	});
+	conf.push(""); // for the trailing new line
 	return conf.join("\n");
 }
 
@@ -132,13 +127,13 @@ window.onload = async function () {
 	let example_str = await read_extension_file("example.ini");
 	var ex = document.getElementById("id_example") as HTMLTextAreaElement;
 	// console.log("loaded example conf: \"" + example_conf + "\"");
-	ex.textContent = example_str;
+	ex.value = example_str;
 
 	let conf_str = await conf_from_sync_as_str();
 	// console.log("loaded conf: \"" + conf + "\"");
 	let conf = document.getElementById("id_conf") as HTMLTextAreaElement;
 	function update_editor(c: string) {
-		conf.textContent = c;
+		conf.value = c;
 	}
 	update_editor(conf_str === "" ? example_str : conf_str);
 	conf.focus();
@@ -163,8 +158,8 @@ window.onload = async function () {
 	});
 
 	button("id_save", async () => {
-		await conf_to_sync(conf.textContent);
-		popup(document.body, "conf saved", () => {
+		const updated = await conf_to_sync(conf.value);
+		popup(document.body, updated ? "conf saved" : "no change", () => {
 			window.close();
 		});
 	});
@@ -189,8 +184,7 @@ window.onload = async function () {
 		var a = document.createElement("a");
 		a.href =
 			// default to text/plain;charset=US-ASCII
-			"data:text/plain;charset=UTF-8," +
-			encodeURIComponent(conf.textContent);
+			"data:text/plain;charset=UTF-8," + encodeURIComponent(conf.value);
 		a.download = "config.ini";
 		a.click();
 	});
@@ -223,4 +217,17 @@ function set_attr(ids: string[], attr: string, v: string) {
 	ids.forEach((id) =>
 		(document.getElementById(id) as HTMLElement).setAttribute(attr, v),
 	);
+}
+
+async function read_extension_file(path: string): Promise<string> {
+	// there's also chrome.runtime.getPackageDirectoryEntry
+	// but api around that thing doesn't support async, yet, as of aug 2026
+	const url: string = chrome.runtime.getURL(path);
+	const resp = await fetch(url);
+	if (!resp.ok) {
+		throw new Error(
+			`error fetching ${path} ${resp.status}: ${resp.statusText}`,
+		);
+	}
+	return await resp.text();
 }

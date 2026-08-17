@@ -42,12 +42,13 @@ Cookie handling
 
 To do
 ---
+- [ ] modernization:
+	- [x] port to TypeScript
+	- [ ] (WIP) await/async instead of callbacks
+- [ ] ACE
+- [ ] intercept download
 - [ ] qBittorrent support
-- [ ] migrate to ACE
-- [ ] modernization: await/async instead of callbacks
 
 Thanks
 ---
-* [Prism](http://prismjs.com/) and
-[CodeFlask.js](https://kazzkiq.github.io/CodeFlask.js/) for syntax highlights.
 * Icon by [Freepik](http://www.flaticon.com/free-icon/download_109717).
