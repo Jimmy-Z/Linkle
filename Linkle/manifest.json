@@ -16,7 +16,7 @@
 	"permissions": [
 		"contextMenus",
 		"notifications",
-		"storage",
+		"storage", "scripting",
 		"activeTab"
 	],
 	"optional_permissions": [

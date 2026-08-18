@@ -1,4 +1,4 @@
-import { is_array_of_str } from "./common.js";
+import { is_array_of_str, log_chrome_error, to_boolean } from "./common.js";
 import { a2addUri } from "./rpc.js";
 import { get_cookies } from "./cookie.js";
 
@@ -6,7 +6,7 @@ chrome.runtime.onInstalled.addListener(installed);
 chrome.contextMenus.onClicked.addListener(clicked);
 chrome.storage.onChanged.addListener(conf_changed);
 
-type Profile = {
+interface Profile {
 	name: string;
 	type: string;
 	[key: string]: string;
@@ -14,29 +14,34 @@ type Profile = {
 
 async function linkle(
 	profile: Profile,
-	link: string,
-	page: string | undefined,
-	nid: string,
+	info: chrome.contextMenus.OnClickData,
+	n_id: string,
 	n_items: chrome.notifications.NotificationItem[],
 ) {
-	if (profile.type == "aria2") {
+	if (profile.type === "aria2") {
 		const o: { [key: string]: string | string[] } = {};
-		if (typeof page == "string") {
+		const page = info.pageUrl;
+		const link = info.linkUrl as string;
+		if (typeof page === "string") {
 			const frag = page.indexOf("#");
-			o.referer = frag == -1 ? page : page.slice(0, frag);
+			o.referer = frag === -1 ? page : page.slice(0, frag);
 		}
 		for (const k in profile) {
 			if (is_aria2_opt(k)) {
 				o[k] = profile[k];
 			}
 		}
-		const cookie = await get_cookies(profile.cookie, [link], page);
-		if (cookie.length > 0) {
-			if (o.header == undefined) {
+		const cookie = await get_cookies(profile.cookie, info);
+		if (typeof cookie === "string" && cookie.length > 0) {
+			if (o.header === undefined) {
 				o.header = ["Cookie: " + cookie];
 			} else {
 				(o.header as string[]).push("Cookie: " + cookie);
 			}
+		}
+		if (to_boolean(profile.dry_run)) {
+			console.debug("aria2 dry run:", link, o);
+			return;
 		}
 		const gid = await a2addUri(
 			profile.url,
@@ -45,9 +50,9 @@ async function linkle(
 			o,
 			parseInt(profile.timeout),
 		);
-		if (gid.length > 0) {
+		if (gid !== undefined) {
 			n_items.push({ title: "GID", message: gid });
-			chrome.notifications.update(nid, { items: n_items });
+			chrome.notifications.update(n_id, { items: n_items });
 		}
 	} else {
 		console.error(`unknown profile type: "${profile.type}"`);
@@ -72,7 +77,7 @@ async function clicked(info: chrome.contextMenus.OnClickData) {
 		iconUrl: "icon.png",
 		items: n_items,
 	};
-	const nid = await chrome.notifications.create(n_opts);
+	const n_id = await chrome.notifications.create(n_opts);
 
 	const sync_name = `p.${profile_name}`;
 	const r = await chrome.storage.sync.get(sync_name);
@@ -82,28 +87,28 @@ async function clicked(info: chrome.contextMenus.OnClickData) {
 			title: "",
 			message: `error parsing profile "${profile_name}"`,
 		});
-		chrome.notifications.update(nid, { items: n_items });
+		chrome.notifications.update(n_id, { items: n_items });
 	} else {
-		linkle(profile, info.linkUrl as string, info.pageUrl, nid, n_items);
+		linkle(profile, info, n_id, n_items);
 	}
 }
 
 function parse_profile(name: string, conf: string[]): Profile | null {
-	if (conf == undefined || conf.length == 0) {
+	if (conf === undefined || conf.length === 0) {
 		return null;
 	}
 	const p: { [key: string]: string | string[] } = {};
 	// split line and remove comments
-	conf = conf.filter((l) => l.length && l[0] != ";");
+	conf = conf.filter((l) => l.length && l[0] !== ";");
 	conf.forEach((l) => {
 		const sep = l.indexOf("=");
-		if (sep == -1) {
+		if (sep === -1) {
 			return;
 		}
 		const k = l.slice(0, sep).trim();
 		const v = l.slice(sep + 1).trim();
 		// multiple header and index-out lines are possible for aria2
-		if (p["type"] == "aria2" && ["header", "index-out"].indexOf(k) != -1) {
+		if (p["type"] === "aria2" && ["header", "index-out"].indexOf(k) !== -1) {
 			const prev = p[k];
 			if (prev === undefined) {
 				p[k] = [v];
@@ -124,14 +129,14 @@ function parse_profile(name: string, conf: string[]): Profile | null {
 	};
 }
 
-function parse_conf(synced: { [key: string]: any }): Profile[] {
-	if (!is_array_of_str(synced.profiles) || synced.profiles.length == 0) {
+function parse_synced(synced: { [key: string]: unknown }): Profile[] {
+	if (!is_array_of_str(synced.profiles) || synced.profiles.length === 0) {
 		return [];
 	}
 	const names = synced.profiles;
 	const profiles: Profile[] = [];
 	names.forEach((n) => {
-		var p = parse_profile(n, synced[`p.${n}`]);
+		const p = parse_profile(n, synced[`p.${n}`] as string[]);
 		if (p != null) {
 			profiles.push(p);
 		}
@@ -150,27 +155,21 @@ function make_context_menu_properties(
 	};
 }
 
-function installed(details: chrome.runtime.InstalledDetails) {
-	chrome.storage.sync.get(null, (r) => {
-		let profiles = parse_conf(r);
-		if (profiles.length == 0) {
-			chrome.tabs.create({
-				url: "chrome://extensions/?options=" + chrome.runtime.id,
-			});
-			return;
-		}
-		profiles.forEach((p) => {
-			console.log('creating menu "' + p.name + '"');
-			chrome.contextMenus.create(make_context_menu_properties(p), () => {
-				if (chrome.runtime.lastError) {
-					console.log(
-						'failed to create contextMenu "' +
-							p.name +
-							'": ' +
-							chrome.runtime.lastError.message,
-					);
-				}
-			});
+async function installed(details: chrome.runtime.InstalledDetails) {
+	console.debug("installed:", details);
+	const conf = await chrome.storage.sync.get(null);
+	const profiles = parse_synced(conf);
+	if (profiles.length === 0) {
+		chrome.tabs.create({
+			url: "chrome://extensions/?options=" + chrome.runtime.id,
+		});
+		return;
+	}
+	profiles.forEach((p) => {
+		console.log(`creating context menu "${p.name}"`);
+		// this api doesn't have a async variant
+		chrome.contextMenus.create(make_context_menu_properties(p), () => {
+			log_chrome_error(`error creating context menu "${p.name}":`);
 		});
 	});
 }
@@ -185,29 +184,28 @@ function conf_changed(changes: {
 			continue;
 		}
 		const name = k.slice(2);
-		let err_cb = function (action: string) {
-			if (chrome.runtime.lastError) {
-				console.error(
-					`error ${action} context menu "${name}": ${chrome.runtime.lastError.message}`,
-				);
-			}
-		};
 		const v = changes[k];
 		if (v.newValue !== undefined) {
-			let p = make_context_menu_properties(
+			const p = make_context_menu_properties(
 				parse_profile(name, v.newValue as string[]) as Profile,
 			);
 			if (v.oldValue === undefined) {
-				console.log(`creating menu "${name}"`);
-				chrome.contextMenus.create(p, () => err_cb("creating"));
+				console.log(`creating context menu "${name}"`);
+				chrome.contextMenus.create(p, () =>
+					log_chrome_error(`error creating context menu "${name}":`),
+				);
 			} else {
 				delete p.id;
-				console.log(`updating menu "${name}"`);
-				chrome.contextMenus.update(name, p, () => err_cb("updating"));
+				console.log(`updating context menu "${name}"`);
+				chrome.contextMenus.update(name, p, () =>
+					log_chrome_error(`error updating context menu "${name}":`),
+				);
 			}
 		} else {
-			console.log(`removing menu "${name}"`);
-			chrome.contextMenus.remove(name, () => err_cb("removing"));
+			console.log(`removing context menu "${name}"`);
+			chrome.contextMenus.remove(name, () =>
+				log_chrome_error(`error removing context menu "${name}":`),
+			);
 		}
 	}
 }
@@ -220,7 +218,7 @@ const _NOT_ARIA2_OPT: { [key: string]: boolean } = {
 	token: true,
 	cookie: true,
 	timeout: true,
-	redirect: true, // what was this for again?
+	dry_run: true,
 };
 
 function is_aria2_opt(k: string): boolean {

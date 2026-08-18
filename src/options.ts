@@ -1,16 +1,16 @@
 import { equal_array_of_str, is_array_of_str, is_empty } from "./common.js";
 
-async function conf_to_sync(conf: string) {
+async function conf_str_to_sync(conf: string) {
 	// console.debug(conf);
 	const profile_names: string[] = [];
-	const profile_names_set: Set<string> = new Set();
+	const profile_names_set = new Set<string>();
 	const profiles: string[][] = [];
 	conf
 		.split("\n")
 		.map((l) => l.trim())
 		.filter((l) => l.length)
 		.forEach((l) => {
-			if (/^\[[^\[\],]+\]$/.test(l)) {
+			if (/^\[[^[\],]+\]$/.test(l)) {
 				const name: string = l.slice(1, -1).trim();
 				profile_names.push(name);
 				profile_names_set.add(name);
@@ -22,7 +22,7 @@ async function conf_to_sync(conf: string) {
 				}
 			}
 		});
-	if (profiles.length == 0) {
+	if (profiles.length === 0) {
 		console.warn("no profile configured");
 		return;
 	}
@@ -75,11 +75,11 @@ async function conf_to_sync(conf: string) {
 	return to_remove.length > 0 || !is_empty(to_set);
 }
 
-async function conf_from_sync_as_str(): Promise<string> {
-	let sync = await chrome.storage.sync.get(null);
+async function conf_str_from_sync(): Promise<string> {
+	const sync = await chrome.storage.sync.get(null);
 	if (
 		!is_array_of_str(sync.profiles, 'sync["profiles"]') ||
-		sync.profiles.length == 0
+		sync.profiles.length === 0
 	) {
 		return "";
 	}
@@ -98,14 +98,14 @@ async function conf_from_sync_as_str(): Promise<string> {
 }
 
 function popup(parent: Node, msg: string, cb?: () => void) {
-	var pop = document.createElement("div");
+	const pop = document.createElement("div");
 	pop.className = "popup";
 
-	var div_msg = document.createElement("div");
+	const div_msg = document.createElement("div");
 	div_msg.appendChild(document.createTextNode(msg));
 	pop.appendChild(div_msg);
 
-	var button = document.createElement("button");
+	const button = document.createElement("button");
 	button.appendChild(document.createTextNode("OK"));
 	pop.appendChild(button);
 
@@ -124,14 +124,14 @@ function popup(parent: Node, msg: string, cb?: () => void) {
 }
 
 window.onload = async function () {
-	let example_str = await read_extension_file("example.ini");
-	var ex = document.getElementById("id_example") as HTMLTextAreaElement;
+	const example_str = await read_extension_file("example.ini");
+	const ex = document.getElementById("id_example") as HTMLTextAreaElement;
 	// console.log("loaded example conf: \"" + example_conf + "\"");
 	ex.value = example_str;
 
-	let conf_str = await conf_from_sync_as_str();
+	const conf_str = await conf_str_from_sync();
 	// console.log("loaded conf: \"" + conf + "\"");
-	let conf = document.getElementById("id_conf") as HTMLTextAreaElement;
+	const conf = document.getElementById("id_conf") as HTMLTextAreaElement;
 	function update_editor(c: string) {
 		conf.value = c;
 	}
@@ -158,7 +158,7 @@ window.onload = async function () {
 	});
 
 	button("id_save", async () => {
-		const updated = await conf_to_sync(conf.value);
+		const updated = await conf_str_to_sync(conf.value);
 		popup(document.body, updated ? "conf saved" : "no change", () => {
 			window.close();
 		});
@@ -181,7 +181,7 @@ window.onload = async function () {
 	});
 
 	button("id_export", () => {
-		var a = document.createElement("a");
+		const a = document.createElement("a");
 		a.href =
 			// default to text/plain;charset=US-ASCII
 			"data:text/plain;charset=UTF-8," + encodeURIComponent(conf.value);

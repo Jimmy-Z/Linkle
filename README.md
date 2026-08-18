@@ -1,6 +1,6 @@
 # Linkle - A Link Between Chrome and [aria2](https://aria2.github.io/)
 Send links to
-[aria2's RPC interface](https://aria2.github.io/manual/en/html/aria2c.html#rpc-interface)
+[aria2](https://aria2.github.io/manual/en/html/aria2c.html#rpc-interface)
 via configurable [context menu](https://developer.chrome.com/extensions/contextMenus) items.
 
 Install
@@ -13,7 +13,7 @@ Highlights
 	* like multiple aria2 servers.
 	* or different options to a same aria2 server.
 * Supports all aria2 options, if available through RPC.
-* Sync through [chrome.storage.sync](https://developer.chrome.com/extensions/storage#property-sync).
+* Sync config through [chrome.storage.sync](https://developer.chrome.com/extensions/storage#property-sync).
 
 Downsides
 ---
@@ -22,8 +22,8 @@ you have to write old school INI style config.
 	* There is an [example](https://github.com/Jimmy-Z/Linkle/blob/master/Linkle/example.ini).
 	* Hey it has syntax highlights! [it's something!](http://knowyourmeme.com/memes/its-something)
 	* I won't fix this.
-* It has no control over the download procedure afterwards,
-use a fully featured web UI like [AriaNg](https://github.com/mayswind/AriaNg) for that.
+* It has no control over the download procedure afterwards
+	* maybe use another web UI for that.
 	* I won't fix this.
 
 Cookie handling

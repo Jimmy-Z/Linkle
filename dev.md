@@ -1,0 +1,8 @@
+- typescript-eslint is not compatible with typescript 7
+	- tracking issue: https://github.com/typescript-eslint/typescript-eslint/issues/10940
+	- official workaround: https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0
+- trying zed for this project
+	- prettier insist on using space in markdown despite zed setting
+		- https://github.com/zed-industries/zed/issues/62794
+	- no indication that eslint is not working (due to faulty config)
+		- https://github.com/zed-industries/zed/issues/62797

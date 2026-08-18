@@ -1,0 +1,7 @@
+[
+	{
+		"label": "tsc",
+		"command": "npx tsc",
+		"save": "all",
+	},
+]

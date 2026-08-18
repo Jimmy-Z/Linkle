@@ -1,14 +1,19 @@
+
 export function equal_array_of_str(a: string[], b: string[]): boolean {
-	return a.length === b.length && a.every((e, i) => e == b[i]);
+	return a.length === b.length && a.every((e, i) => e === b[i]);
 }
+
 // really, having to write this feels stupid
-export function is_array_of_str(v: any, log_prefix?: string): v is string[] {
+export function is_array_of_str(
+	v: unknown,
+	log_prefix?: string,
+): v is string[] {
 	return is_array_of(v, (e) => typeof e === "string", "string", log_prefix);
 }
 
 function is_array_of<T>(
-	v: any,
-	is_type: (e: any) => e is T,
+	v: unknown,
+	is_type: (e: unknown) => e is T,
 	type_name: string,
 	log_prefix?: string,
 ): v is T[] {
@@ -22,15 +27,42 @@ function is_array_of<T>(
 	}
 }
 
-export function is_empty(o: Object): boolean {
+export function is_empty(o: object): boolean {
 	for (const _ in o) {
 		return false;
 	}
 	return true;
 }
 
-function log_chrome_error(prefix: string) {
+export function log_chrome_error(prefix: string) {
 	if (chrome.runtime.lastError) {
-		console.log(prefix + chrome.runtime.lastError);
+		console.error(prefix, chrome.runtime.lastError);
+	}
+}
+
+// not conventional
+export function to_boolean(v: unknown): boolean {
+	if (v === undefined || v === null) {
+		return false;
+	}
+	switch (typeof v) {
+		case "boolean":
+			return v;
+		case "string":
+			switch (v.toLowerCase()) {
+				case "true":
+				case "on":
+				case "yes":
+				case "y":
+					return true;
+				default:
+					return false;
+			}
+		case "number":
+			return !isNaN(v) && v !== 0;
+		case "bigint":
+			return v !== 0n;
+		default:
+			return false;
 	}
 }
