@@ -1,5 +1,5 @@
-import { is_array_of_str, log_chrome_error, to_boolean } from "./common.js";
-import { a2addUri } from "./rpc.js";
+import { is_array_of_str, last_err, to_boolean } from "./common.js";
+import { a2addUri, qbt_add } from "./rpc.js";
 import { get_cookies } from "./cookie.js";
 
 chrome.runtime.onInstalled.addListener(installed);
@@ -19,41 +19,63 @@ async function linkle(
 	n_items: chrome.notifications.NotificationItem[],
 ) {
 	if (profile.type === "aria2") {
-		const o: { [key: string]: string | string[] } = {};
+		const opts: { [key: string]: string | string[] } = {};
 		const page = info.pageUrl;
 		const link = info.linkUrl as string;
 		if (typeof page === "string") {
 			const frag = page.indexOf("#");
-			o.referer = frag === -1 ? page : page.slice(0, frag);
+			opts.referer = frag === -1 ? page : page.slice(0, frag);
 		}
 		for (const k in profile) {
-			if (is_aria2_opt(k)) {
-				o[k] = profile[k];
+			if (is_a2_opt(k)) {
+				opts[k] = profile[k];
 			}
 		}
 		const cookie = await get_cookies(profile.cookie, info);
 		if (typeof cookie === "string" && cookie.length > 0) {
-			if (o.header === undefined) {
-				o.header = ["Cookie: " + cookie];
+			if (opts.header === undefined) {
+				opts.header = ["Cookie: " + cookie];
 			} else {
-				(o.header as string[]).push("Cookie: " + cookie);
+				(opts.header as string[]).push("Cookie: " + cookie);
 			}
 		}
 		if (to_boolean(profile.dry_run)) {
-			console.debug("aria2 dry run:", link, o);
+			console.debug("aria2 dry run:", link, opts);
 			return;
 		}
 		const gid = await a2addUri(
 			profile.url,
 			profile.token,
 			[link],
-			o,
+			opts,
 			parseInt(profile.timeout),
 		);
 		if (gid !== undefined) {
 			n_items.push({ title: "GID", message: gid });
 			chrome.notifications.update(n_id, { items: n_items });
 		}
+	} else if (profile.type === "qbt") {
+		const link = info.linkUrl as string;
+		const opts: [string, string][] = [];
+		for (const k in profile) {
+			if (is_qbt_opt(k)) {
+				opts.push([k, profile[k]]);
+			}
+		}
+		if (
+			await qbt_add(
+				profile.url,
+				link,
+				opts,
+				profile.username,
+				profile.password,
+			)
+		) {
+			n_items.push({ title: "", message: "success" });
+		} else {
+			n_items.push({ title: "", message: "failure" });
+		}
+		chrome.notifications.update(n_id, { items: n_items });
 	} else {
 		console.error(`unknown profile type: "${profile.type}"`);
 	}
@@ -169,7 +191,7 @@ async function installed(details: chrome.runtime.InstalledDetails) {
 		console.log(`creating context menu "${p.name}"`);
 		// this api doesn't have a async variant
 		chrome.contextMenus.create(make_context_menu_properties(p), () => {
-			log_chrome_error(`error creating context menu "${p.name}":`);
+			last_err(`error creating context menu "${p.name}":`);
 		});
 	});
 }
@@ -192,35 +214,53 @@ function conf_changed(changes: {
 			if (v.oldValue === undefined) {
 				console.log(`creating context menu "${name}"`);
 				chrome.contextMenus.create(p, () =>
-					log_chrome_error(`error creating context menu "${name}":`),
+					last_err(`error creating context menu "${name}":`),
 				);
 			} else {
 				delete p.id;
 				console.log(`updating context menu "${name}"`);
 				chrome.contextMenus.update(name, p, () =>
-					log_chrome_error(`error updating context menu "${name}":`),
+					last_err(`error updating context menu "${name}":`),
 				);
 			}
 		} else {
 			console.log(`removing context menu "${name}"`);
 			chrome.contextMenus.remove(name, () =>
-				log_chrome_error(`error removing context menu "${name}":`),
+				last_err(`error removing context menu "${name}":`),
 			);
 		}
 	}
 }
 
-const _NOT_ARIA2_OPT: { [key: string]: boolean } = {
+interface OptLst {
+	[key: string]: boolean;
+}
+
+const _COMMON_OPT: OptLst = {
 	name: true,
 	type: true,
 	link_patterns: true,
 	url: true,
-	token: true,
-	cookie: true,
-	timeout: true,
 	dry_run: true,
+	timeout: true,
 };
 
-function is_aria2_opt(k: string): boolean {
-	return !_NOT_ARIA2_OPT[k];
+const _A2_OPT: OptLst = {
+	token: true,
+	cookie: true,
+};
+
+const _QBT_OPT: OptLst = {
+	username: true,
+	password: true,
+};
+
+// the rest are options should be sent to aria2/qbittorrent
+function is_a2_opt(k: string): boolean {
+	return !_COMMON_OPT[k] && !_A2_OPT[k];
 }
+
+function is_qbt_opt(k: string): boolean {
+	return !_COMMON_OPT[k] && !_QBT_OPT[k];
+}
+

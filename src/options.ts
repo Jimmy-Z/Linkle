@@ -5,6 +5,7 @@ async function conf_str_to_sync(conf: string) {
 	const profile_names: string[] = [];
 	const profile_names_set = new Set<string>();
 	const profiles: string[][] = [];
+	const urls_set: { [url: string]: boolean } = {};
 	conf
 		.split("\n")
 		.map((l) => l.trim())
@@ -20,11 +21,34 @@ async function conf_str_to_sync(conf: string) {
 				if (lines) {
 					lines.push(l);
 				}
+				// if it's url
+				if (l.length === 0 || l[0] === ";") {
+					return;
+				}
+				const sep = l.indexOf("=");
+				if (sep === -1) {
+					return;
+				}
+				const k = l.slice(0, sep).trim();
+				if (k !== "url") {
+					return;
+				}
+				urls_set[new URL(l.slice(sep + 1).trim()).toString()] = true;
 			}
 		});
 	if (profiles.length === 0) {
 		console.warn("no profile configured");
 		return;
+	}
+
+	// request permissions for rpc urls
+	const urls = Object.keys(urls_set);
+	if (urls.length > 0) {
+		if (await chrome.permissions.request({ origins: urls })) {
+			console.info("access to rpc urls granted");
+		} else {
+			console.warn("access to rpc urls denied");
+		}
 	}
 
 	const sync = await chrome.storage.sync.get(null);
@@ -88,12 +112,11 @@ async function conf_str_from_sync(): Promise<string> {
 	names.forEach((n) => {
 		const prof = sync[`p.${n}`];
 		if (is_array_of_str(prof, `sync["p.${n}"]`)) {
-			conf.push(`[${n}]`, ...prof);
+			conf.push(`[${n}]`, ...prof, "");
 		} else {
 			console.assert(false);
 		}
 	});
-	conf.push(""); // for the trailing new line
 	return conf.join("\n");
 }
 
@@ -168,15 +191,15 @@ window.onload = async function () {
 		const input = document.createElement("input");
 		input.type = "file";
 		input.accept = ".ini";
-		input.onchange = async (evt) => {
+		input.addEventListener("change", async (evt) => {
 			const f = (evt.target as HTMLInputElement).files;
 			if (!f || !f[0]) {
-				console.info("no file");
+				console.info("import: no file");
 				return;
 			}
 			// console.log(f[0].name);
 			update_editor(await f[0].text());
-		};
+		});
 		input.click();
 	});
 

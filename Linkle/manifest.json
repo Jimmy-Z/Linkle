@@ -1,8 +1,9 @@
 {
 	"manifest_version": 3,
 	"name": "Linkle",
-	"version": "0.2.0",
-	"description": "Send link to aria2 RPC",
+	"version": "0.3.1",
+	"description": "Send link to aria2/qBittorrent RPC",
+	"homepage_url": "https://github.com/Jimmy-Z/Linkle",
 	"icons": {
 		"64": "icon.png"
 	},
@@ -16,16 +17,10 @@
 	"permissions": [
 		"contextMenus",
 		"notifications",
-		"storage", "scripting",
+		"storage",
+		"scripting",
 		"activeTab"
 	],
-	"optional_permissions": [
-		"cookies"
-	],
-	"optional_host_permissions": [
-		"http://*/",
-		"https://*/"
-	],
-	"short_name": "Linkle",
-	"homepage_url": "https://github.com/Jimmy-Z/Linkle"
+	"optional_permissions": ["cookies"],
+	"optional_host_permissions": ["http://*/", "https://*/"]
 }

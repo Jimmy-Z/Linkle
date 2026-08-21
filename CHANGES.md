@@ -1,3 +1,7 @@
+* 0.3.1 qBittorrent support.
+* 0.3.0 migrated to TypeScript and async/await instead of callbacks.
+	* most cookie handling code is gone, personally don't have a use for it.
+	* syntax highlight is gone.
 * 0.2.0 migrated to MV3, generic RPC is dropped, cookie functionality is not tested yet.
 * 0.1.9 handles sync properly.
 and a fix for cookie handling breakage caused by notification introduced in 0.1.7.

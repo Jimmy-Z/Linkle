@@ -1,4 +1,4 @@
-import { log_chrome_error } from "./common.js";
+import { last_err } from "./common.js";
 
 export async function get_cookies(
 	mode: string | undefined,
@@ -51,7 +51,7 @@ async function get_page_cookie(
 		},
 	});
 	console.debug("chrome.scripting.executeScript():", res);
-	log_chrome_error("chrome.tabs.executeScript failed:");
+	last_err("chrome.tabs.executeScript failed:");
 	if (res === undefined) {
 		return undefined;
 	}

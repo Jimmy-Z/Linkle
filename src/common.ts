@@ -20,7 +20,7 @@ function is_array_of<T>(
 	if (Array.isArray(v) && v.every(is_type)) {
 		return true;
 	} else {
-		if (typeof log_prefix === "string") {
+		if (log_prefix !== undefined) {
 			console.warn(`${log_prefix} expecting array of ${type_name}:`, v);
 		}
 		return false;
@@ -34,7 +34,7 @@ export function is_empty(o: object): boolean {
 	return true;
 }
 
-export function log_chrome_error(prefix: string) {
+export function last_err(prefix: string) {
 	if (chrome.runtime.lastError) {
 		console.error(prefix, chrome.runtime.lastError);
 	}
