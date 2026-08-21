@@ -4,7 +4,8 @@ import { get_cookies } from "./cookie.js";
 
 chrome.runtime.onInstalled.addListener(installed);
 chrome.contextMenus.onClicked.addListener(clicked);
-chrome.storage.onChanged.addListener(conf_changed);
+chrome.storage.sync.onChanged.addListener(conf_changed);
+chrome.downloads.onCreated.addListener(download);
 
 interface Profile {
 	name: string;
@@ -12,26 +13,74 @@ interface Profile {
 	[key: string]: string;
 };
 
-async function linkle(
-	profile: Profile,
-	info: chrome.contextMenus.OnClickData,
-	n_id: string,
-	n_items: chrome.notifications.NotificationItem[],
-) {
+async function download(item: chrome.downloads.DownloadItem) {
+	if (item.byExtensionId === chrome.runtime.id) {
+		// re-entry
+		return;
+	}
+	if (item.url.startsWith("data:")) {
+		return;
+	}
+	const intercept = (await chrome.storage.sync.get("intercept"))["intercept"];
+	if (typeof intercept !== "string") {
+		console.info("invalid intercepting profile:", intercept);
+		return;
+	}
+	console.info("intercepting with profile:", intercept);
+
+	await chrome.downloads.cancel(item.id);
+	await chrome.downloads.erase({ id: item.id });
+
+	await linkle(intercept, item.finalUrl, item.referrer);
+}
+
+async function clicked(info: chrome.contextMenus.OnClickData) {
+	await linkle(
+		info.menuItemId as string,
+		info.linkUrl as string,
+		info.frameUrl !== undefined ? info.frameUrl : (info.pageUrl as string),
+	);
+}
+
+async function linkle(profile_name: string, link: string, referer: string) {
+	// https://developer.chrome.com/docs/extensions/reference/api/notifications#type-NotificationOptions
+	// since notifications.update overwrites this item list, I'm passing it down
+	const n_items: chrome.notifications.NotificationItem[] = [
+		// the url is usually too long to fit
+		{ title: "sent", message: `${link.slice(0, 24)} ...` },
+	];
+	// note: items can't be empty
+	const n_opts: chrome.notifications.NotificationCreateOptions = {
+		type: "list",
+		title: profile_name,
+		message: "",
+		iconUrl: "icon.png",
+		items: n_items,
+	};
+	const n_id = await chrome.notifications.create(n_opts);
+
+	const sync_name = `p.${profile_name}`;
+	const r = await chrome.storage.sync.get(sync_name);
+	const profile = parse_profile(profile_name, r[sync_name] as string[]);
+
+	if (profile == null) {
+		n_items.push({
+			title: "error",
+			message: `parsing profile "${profile_name}"`,
+		});
+		chrome.notifications.update(n_id, { items: n_items });
+		return;
+	}
+
 	if (profile.type === "aria2") {
 		const opts: { [key: string]: string | string[] } = {};
-		const page = info.pageUrl;
-		const link = info.linkUrl as string;
-		if (typeof page === "string") {
-			const frag = page.indexOf("#");
-			opts.referer = frag === -1 ? page : page.slice(0, frag);
-		}
+		opts.referer = referer;
 		for (const k in profile) {
 			if (is_a2_opt(k)) {
 				opts[k] = profile[k];
 			}
 		}
-		const cookie = await get_cookies(profile.cookie, info);
+		const cookie = await get_cookies(link);
 		if (typeof cookie === "string" && cookie.length > 0) {
 			if (opts.header === undefined) {
 				opts.header = ["Cookie: " + cookie];
@@ -51,11 +100,12 @@ async function linkle(
 			parseInt(profile.timeout),
 		);
 		if (gid !== undefined) {
-			n_items.push({ title: "GID", message: gid });
-			chrome.notifications.update(n_id, { items: n_items });
+			n_items.push({ title: "Ok", message: `GID: ${gid}` });
+		} else {
+			n_items.push({ title: "fail", message: "" });
 		}
+		chrome.notifications.update(n_id, { items: n_items });
 	} else if (profile.type === "qbt") {
-		const link = info.linkUrl as string;
 		const opts: [string, string][] = [];
 		for (const k in profile) {
 			if (is_qbt_opt(k)) {
@@ -71,47 +121,13 @@ async function linkle(
 				profile.password,
 			)
 		) {
-			n_items.push({ title: "", message: "success" });
+			n_items.push({ title: "success", message: "" });
 		} else {
-			n_items.push({ title: "", message: "failure" });
+			n_items.push({ title: "failure", message: "" });
 		}
 		chrome.notifications.update(n_id, { items: n_items });
 	} else {
 		console.error(`unknown profile type: "${profile.type}"`);
-	}
-}
-
-async function clicked(info: chrome.contextMenus.OnClickData) {
-	const profile_name = info.menuItemId as string;
-	// https://developer.chrome.com/docs/extensions/reference/api/notifications#type-NotificationOptions
-	// since notifications.update overwrites this item list, I'm passing it down
-	const n_items: chrome.notifications.NotificationItem[] = [
-		{
-			title: "link",
-			message: info.linkUrl as string,
-		},
-	];
-	// note: items can't be empty
-	const n_opts: chrome.notifications.NotificationCreateOptions = {
-		type: "list",
-		title: profile_name,
-		message: "",
-		iconUrl: "icon.png",
-		items: n_items,
-	};
-	const n_id = await chrome.notifications.create(n_opts);
-
-	const sync_name = `p.${profile_name}`;
-	const r = await chrome.storage.sync.get(sync_name);
-	const profile = parse_profile(profile_name, r[sync_name] as string[]);
-	if (profile == null) {
-		n_items.push({
-			title: "",
-			message: `error parsing profile "${profile_name}"`,
-		});
-		chrome.notifications.update(n_id, { items: n_items });
-	} else {
-		linkle(profile, info, n_id, n_items);
 	}
 }
 
@@ -182,9 +198,7 @@ async function installed(details: chrome.runtime.InstalledDetails) {
 	const conf = await chrome.storage.sync.get(null);
 	const profiles = parse_synced(conf);
 	if (profiles.length === 0) {
-		chrome.tabs.create({
-			url: "chrome://extensions/?options=" + chrome.runtime.id,
-		});
+		chrome.runtime.openOptionsPage();
 		return;
 	}
 	profiles.forEach((p) => {

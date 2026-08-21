@@ -11,16 +11,19 @@
 		"service_worker": "linkle.js",
 		"type": "module"
 	},
+	"action": {
+		"default_popup": "popup.html"
+	},
 	"options_ui": {
-		"page": "options.html"
+		"page": "options.html",
+		"open_in_tab": true
 	},
 	"permissions": [
 		"contextMenus",
 		"notifications",
 		"storage",
-		"scripting",
-		"activeTab"
+		"downloads"
 	],
 	"optional_permissions": ["cookies"],
-	"optional_host_permissions": ["http://*/", "https://*/"]
+	"optional_host_permissions": ["*://*/"]
 }

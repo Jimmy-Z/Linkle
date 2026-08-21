@@ -1,3 +1,4 @@
+* 0.3.2 intercept downloads.
 * 0.3.1 qBittorrent support.
 * 0.3.0 migrated to TypeScript and async/await instead of callbacks.
 	* most cookie handling code is gone, personally don't have a use for it.

@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+	<head>
+		<script type="module" src="popup.js"></script>
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				width: fit-content;
+				font-family:
+					Candara,
+					Roboto,
+					system-ui,
+					sans-serif;
+				font-size: 16px;
+				color: lightgray;
+				background-color: black;
+				box-sizing: border-box;
+			}
+			ul {
+				width: max-content;
+				border-collapse: collapse;
+				list-style-type: none;
+				padding: 0;
+				margin: 2px 0;
+			}
+			li {
+				padding: 1px .5em;
+				margin: 1px .5em;
+				white-space: nowrap;
+				text-align: center;
+			}
+			li.selected {
+				border: 1px solid limegreen;
+				color: red;
+			}
+			li:not(.selected) {
+				cursor: pointer;
+			}
+			li:not(.selected):hover {
+				color: limegreen;
+			}
+			hr {
+				margin: 0 .5em auto;
+				border: 1px solid dimgray;
+			}
+		</style>
+	</head>
+	<body>
+		<ul id="menu">
+		</ul>
+	</body>
+</html>

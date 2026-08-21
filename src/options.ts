@@ -132,14 +132,21 @@ function popup(parent: Node, msg: string, cb?: () => void) {
 	button.appendChild(document.createTextNode("OK"));
 	pop.appendChild(button);
 
+	let removed = false;
 	button.addEventListener("click", () => {
 		if (cb) {
 			cb();
 		}
-		parent.removeChild(pop);
+		if (!removed) {
+			removed = true;
+			parent.removeChild(pop);
+		}
 	});
 	button.addEventListener("blur", () => {
-		parent.removeChild(pop);
+		if (!removed) {
+			removed = true;
+			parent.removeChild(pop);
+		}
 	});
 
 	parent.appendChild(pop);
@@ -165,19 +172,20 @@ window.onload = async function () {
 	const NORMAL_MODE_IDS = [
 		"id_conf",
 		"id_save",
-		"id_import",
 		"id_export",
+		"id_import",
+		"id_request",
 		"id_revoke",
 		"id_show_example",
 	];
 	const EXAMPLE_MODE_IDS = ["id_example", "id_hide_example"];
 	button("id_show_example", () => {
-		set_attr(NORMAL_MODE_IDS, "hide", "true");
-		remove_attr(EXAMPLE_MODE_IDS, "hide");
+		set_attr(NORMAL_MODE_IDS, "hidden", "");
+		remove_attr(EXAMPLE_MODE_IDS, "hidden");
 	});
 	button("id_hide_example", () => {
-		set_attr(EXAMPLE_MODE_IDS, "hide", "true");
-		remove_attr(NORMAL_MODE_IDS, "hide");
+		set_attr(EXAMPLE_MODE_IDS, "hidden", "");
+		remove_attr(NORMAL_MODE_IDS, "hidden");
 	});
 
 	button("id_save", async () => {
@@ -185,6 +193,15 @@ window.onload = async function () {
 		popup(document.body, updated ? "conf saved" : "no change", () => {
 			window.close();
 		});
+	});
+
+	button("id_export", () => {
+		const a = document.createElement("a");
+		a.href =
+			// default to text/plain;charset=US-ASCII
+			"data:text/plain;charset=UTF-8," + encodeURIComponent(conf.value);
+		a.download = "config.ini";
+		a.click();
 	});
 
 	button("id_import", () => {
@@ -203,13 +220,20 @@ window.onload = async function () {
 		input.click();
 	});
 
-	button("id_export", () => {
-		const a = document.createElement("a");
-		a.href =
-			// default to text/plain;charset=US-ASCII
-			"data:text/plain;charset=UTF-8," + encodeURIComponent(conf.value);
-		a.download = "config.ini";
-		a.click();
+	button("id_request", async () => {
+		if (
+			await chrome.permissions.request({
+				permissions: ["cookies"],
+				origins: ["*://*/*"],
+			})
+		) {
+			popup(document.body, "access granted");
+		} else {
+			popup(
+				document.body,
+				"access denied\ncookie related functions likely will not work",
+			);
+		}
 	});
 
 	button("id_revoke", async () => {
@@ -218,10 +242,7 @@ window.onload = async function () {
 			permissions: ["cookies"],
 			origins: perms.origins,
 		});
-		popup(
-			document.body,
-			"all previously acquired optional permissions revoked",
-		);
+		popup(document.body, "previously acquired permissions revoked");
 	});
 };
 
