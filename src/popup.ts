@@ -15,7 +15,7 @@ async function init(sync: unknown) {
 			li.className = "selected";
 		} else {
 			li.addEventListener("click", async () => {
-				await chrome.storage.sync.set({ intercept: name });
+				await chrome.storage.local.set({ intercept: name });
 				window.close();
 			});
 		}
@@ -28,7 +28,7 @@ async function init(sync: unknown) {
 		const off = document.createElement("li");
 		off.appendChild(document.createTextNode("off"));
 		off.addEventListener("click", async () => {
-			await chrome.storage.sync.remove("intercept");
+			await chrome.storage.local.remove("intercept");
 			window.close();
 		});
 		list.appendChild(off);

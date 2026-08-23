@@ -1,3 +1,5 @@
+* 0.3.3 qBittorrent switch to api key auth.
+	* intercept setting is saved local instead of sync.
 * 0.3.2 intercept downloads.
 * 0.3.1 qBittorrent support.
 * 0.3.0 migrated to TypeScript and async/await instead of callbacks.

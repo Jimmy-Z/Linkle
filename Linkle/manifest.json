@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "Linkle",
-	"version": "0.3.1",
+	"version": "0.3.3",
 	"description": "Send link to aria2/qBittorrent RPC",
 	"homepage_url": "https://github.com/Jimmy-Z/Linkle",
 	"icons": {

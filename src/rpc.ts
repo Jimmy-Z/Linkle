@@ -81,8 +81,7 @@ export async function a2addUri(
 	return resp;
 }
 
-// https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#login
-// /api/v2/auth/login
+// https://github.com/qbittorrent/qBittorrent/wiki/API-Key-Authentication-(%E2%89%A5v5.2.0)
 // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#add-new-torrent
 // /api/v2/torrents/add
 async function qbt(
@@ -90,11 +89,12 @@ async function qbt(
 	method: string,
 	args: [string, string][],
 	multipart: boolean,
+	key?: string,
 	timeout?: number,
 ): Promise<Response | undefined> {
 	const opts: RequestInit = {
 		method: "POST",
-		credentials: "same-origin",
+		credentials: "omit",
 	};
 	if (multipart) {
 		const form = new FormData();
@@ -105,59 +105,23 @@ async function qbt(
 	} else {
 		opts.body = new URLSearchParams(args);
 	}
-	return await fetch_ex(`${url}/api/v2${method}`, opts, timeout);
-}
-
-async function qbt_login(
-	url: string,
-	username: string,
-	password: string,
-	timeout?: number,
-): Promise<boolean | undefined> {
-	const resp = await qbt(
-		url,
-		"/auth/login",
-		[
-			["username", username],
-			["password", password],
-		],
-		false,
-		timeout,
-	);
-	if (resp === undefined) {
-		return undefined;
+	if (key) {
+		const headers = new Headers();
+		headers.append("Authorization", `Bearer ${key}`);
+		opts.headers = headers;
 	}
-	return resp.ok;
+	return await fetch_ex(`${url}/api/v2${method}`, opts, timeout);
 }
 
 export async function qbt_add(
 	url: string,
 	link: string,
 	opts: [string, string][],
-	username?: string,
-	password?: string,
+	key?: string,
 	timeout?: number,
 ): Promise<boolean | undefined> {
 	opts.push(["urls", link]);
-	let resp;
-	let auth_tried = false;
-	while (true) {
-		resp = await qbt(url, "/torrents/add", opts, true, timeout);
-		if (resp?.status === 403) {
-			if (auth_tried || username === undefined || password === undefined) {
-				break;
-			}
-			// maybe we need auth
-			auth_tried = true;
-			if (await qbt_login(url, username, password)) {
-				continue;
-			} else {
-				break;
-			}
-		} else {
-			break;
-		}
-	}
+	const resp = await qbt(url, "/torrents/add", opts, true, key, timeout);
 	if (resp === undefined) {
 		return undefined;
 	}

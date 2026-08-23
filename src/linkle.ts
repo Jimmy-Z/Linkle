@@ -21,7 +21,7 @@ async function download(item: chrome.downloads.DownloadItem) {
 	if (item.url.startsWith("data:")) {
 		return;
 	}
-	const intercept = (await chrome.storage.sync.get("intercept"))["intercept"];
+	const intercept = (await chrome.storage.local.get("intercept"))["intercept"];
 	if (typeof intercept !== "string") {
 		console.info("invalid intercepting profile:", intercept);
 		return;
@@ -117,8 +117,8 @@ async function linkle(profile_name: string, link: string, referer: string) {
 				profile.url,
 				link,
 				opts,
-				profile.username,
-				profile.password,
+				profile.key,
+				parseInt(profile.timeout),
 			)
 		) {
 			n_items.push({ title: "success", message: "" });
@@ -265,8 +265,7 @@ const _A2_OPT: OptLst = {
 };
 
 const _QBT_OPT: OptLst = {
-	username: true,
-	password: true,
+	key: true,
 };
 
 // the rest are options should be sent to aria2/qbittorrent
