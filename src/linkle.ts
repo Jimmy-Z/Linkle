@@ -18,7 +18,7 @@ async function download(item: chrome.downloads.DownloadItem) {
 		// re-entry
 		return;
 	}
-	if (item.url.startsWith("data:")) {
+	if (item.url.startsWith("data:") || item.url.startsWith("blob:")) {
 		return;
 	}
 	const intercept = (await chrome.storage.local.get("intercept"))["intercept"];
