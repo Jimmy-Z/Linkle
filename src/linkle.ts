@@ -75,6 +75,7 @@ async function linkle(profile_name: string, link: string, referer: string) {
 	if (profile.type === "aria2") {
 		const opts: { [key: string]: string | string[] } = {};
 		opts.referer = referer;
+		opts["user-agent"] = navigator.userAgent;
 		for (const k in profile) {
 			if (is_a2_opt(k)) {
 				opts[k] = profile[k];

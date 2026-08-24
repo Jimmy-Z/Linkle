@@ -196,12 +196,13 @@ window.onload = async function () {
 	});
 
 	button("id_export", () => {
+		const blob = new Blob([conf.value], { type: "text/plain;charset=utf-8" });
+		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
-		a.href =
-			// default to text/plain;charset=US-ASCII
-			"data:text/plain;charset=UTF-8," + encodeURIComponent(conf.value);
+		a.href = url;
 		a.download = "config.ini";
 		a.click();
+		URL.revokeObjectURL(url);
 	});
 
 	button("id_import", () => {
