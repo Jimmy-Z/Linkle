@@ -11,7 +11,7 @@ async function conf_str_to_sync(conf: string) {
 		.map((l) => l.trim())
 		.filter((l) => l.length)
 		.forEach((l) => {
-			if (/^\[[^[\],]+\]$/.test(l)) {
+			if (l.startsWith("[") && l.endsWith("]")) {
 				const name: string = l.slice(1, -1).trim();
 				profile_names.push(name);
 				profile_names_set.add(name);

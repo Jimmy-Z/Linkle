@@ -30,22 +30,26 @@ Highlights
 
 Downsides
 ---
-* It doesn't have a configuration GUI with flip switches and sliders
+* It doesn't have a configuration GUI with flip switches and sliders.
 	* I won't fix this.
-* It has no control over the download procedure afterwards
-	* maybe use another web UI for that.
-	* I won't fix this.
+* Download management is limited to view and cancel.
 
 notes
 ---
 * click the icon to choose which profile to use for intercepting.
+* the little cross floating button (appears when mouse cursor hovers over a download task)
+	removes the download task WITHOUT any confirmation, use with caution.
+	* for qBittorrent, removes the task but files are left intact if it's complete,
+		deletes files too if it's incomplete.
+	* for aria2, mark the task as removed, always leave the files (since aria2 rpc has no such option).
+		* additionally the purge button cleans up completed/stopped/error/removed tasks.
 * actually chrome has no "download intercepting" api,
 	there's download _managing_ api.
 	* what linkle (and most likely other extensions too) actually does:
 		* gets notified when a download starts
 		* stop it
 		* erase it from download history
-		* send it
+		* send it to aria2
 	* so it's normal to see the animation indicating chrome started a download.
 	* theoretically if the website generates a link that can only be accessed once,
 		this method will fail.
@@ -61,7 +65,6 @@ notes
 		yeah, I _could_ preserve old behavior when not intercepting,
 		but it's a hassle, and ...
 	* that "allows ... upon user interaction" is apparently buggy in async.
-	
 
 To do
 ---

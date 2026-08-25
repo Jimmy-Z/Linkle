@@ -3,14 +3,17 @@
 	<head>
 		<script type="module" src="popup.js"></script>
 		<style>
-			html, body {
+			html {
 				margin: 0;
 				padding: 0;
 			}
 			body {
+				margin: 0;
+				padding: 4px;
 				width: fit-content;
 				font-family:
 					Candara,
+					Microsoft YaHei Light,
 					Roboto,
 					system-ui,
 					sans-serif;
@@ -24,30 +27,122 @@
 				border-collapse: collapse;
 				list-style-type: none;
 				padding: 0;
-				margin: 2px 0;
+				margin: 0;
 			}
 			li {
-				padding: 1px .5em;
-				margin: 1px .5em;
+				padding: 0;
+				margin: 0;
 				white-space: nowrap;
 			}
-			li.selected {
-				border: 1px solid limegreen;
-				color: red;
+			/* move several narrow things to the right */
+			div:has(+ ul#profiles),
+			ul#profiles,
+			ul#profiles > li,
+			div#conf {
+				width: fit-content;
+				margin-left: auto;
 			}
-			li:not(.selected) {
+			li.profile:not(.selected),
+			span.del,
+			span.purge,
+			li#off,
+			div#conf {
 				cursor: pointer;
 			}
-			li:not(.selected):hover {
-				color: limegreen;
-			}
-			li.not_profile {
+			li.profile {
 				text-align: right;
+				color: darkgray;
+			}
+			li.profile.selected {
+				color: white;
+			}
+			li.profile:not(.selected):hover,
+			li.dl-item:hover,
+			span.purge:hover,
+			li#off:hover,
+			div#conf:hover {
+				color: cyan;
+			}
+			/* grid layout, had to passthrough 2 layers of ul - li */
+			ul#tasks {
+				display: grid;
+				grid-template-columns: 1fr repeat(4, max-content);
+			}
+			ul#tasks > li {
+				display: grid;
+				grid-column: 1 / -1;
+				grid-template-columns: subgrid;
+			}
+			ul.dl-list {
+				display: grid;
+				grid-column: 1 / -1;
+				grid-template-columns: subgrid;
+			}
+			li.dl-item {
+				display: grid;
+				grid-column: 1 / -1;
+				grid-template-columns: subgrid;
+				position: relative;
+			}
+			/* captions */
+			div:has(+ ul.dl-list) {
+				display: flex;
+				grid-column: 1 / -1;
+				width: fit-content;
+				margin-left: auto;
+				margin-right: auto;
+				border-bottom: 1px solid dimgray;
+			}
+			/* name and progress */
+			li.dl-item > div {
+				grid-column: 1 / -1;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				min-width: 0;
+				max-width: 480px;
+			}
+			li.dl-item > span:not(.del) {
+				text-align: right;
+				font-size: 12px;
+				margin-left: .5em;
+			}
+			span.purge {
+				margin-left: .5em;
+			}
+			span.del {
+				display: none;
+				position: absolute;
+				z-index: 10;
+				left: 0;
+				padding: 0 .5em;
+				background-color: rgba(0, 0, 0, .75);
+				color: gray;
+			}
+			span.del:hover {
+				color: red;
+			}
+			li.dl-item:hover > span.del {
+				display: block;
+			}
+			div#conf {
+				/* border-top: 1px solid dimgray; */
+			}
+			div.progress {
+				grid-column: 1 / -1;
+				height: 0.1px;
+				background-color: dimgray;
+			}
+			div.fill {
+				height: 100%;
+				background-color: cyan;
 			}
 		</style>
 	</head>
 	<body>
-		<ul id="menu">
-		</ul>
+		<div>intercepting:</div>
+		<ul id="profiles"></ul>
+		<ul id="tasks"></ul>
+		<div id="conf">config</div>
 	</body>
 </html>
