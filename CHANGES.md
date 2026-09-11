@@ -1,3 +1,4 @@
+* 0.4.1 cookie fix, shouldn't encode them (again).
 * 0.4.0 simple download management.
 * 0.3.3 qBittorrent switch to api key auth.
 	* intercept setting is saved in local instead of sync.

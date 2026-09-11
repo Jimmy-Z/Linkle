@@ -13,9 +13,7 @@ export async function get_cookies(link: string): Promise<string | undefined> {
 		return undefined;
 	}
 	return cookies
-		.map(
-			(c) => encodeURIComponent(c.name) + "=" + encodeURIComponent(c.value),
-		)
+		.map((c) => c.name + "=" + c.value)
 		.join("; ")
 }
 

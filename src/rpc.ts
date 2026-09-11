@@ -49,6 +49,7 @@ async function a2(
 			method: "POST",
 			body: post,
 			credentials: "omit",
+			cache: "no-store"
 		},
 		timeout,
 	);

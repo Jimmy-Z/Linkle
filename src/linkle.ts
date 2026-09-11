@@ -22,8 +22,12 @@ async function download(item: chrome.downloads.DownloadItem) {
 		return;
 	}
 	const intercept = (await chrome.storage.local.get("intercept"))["intercept"];
+	if (intercept === undefined) {
+		console.info("intercepting set to off, abort");
+		return;
+	}
 	if (typeof intercept !== "string") {
-		console.info("invalid intercepting profile:", intercept);
+		console.warn("invalid intercepting profile:", intercept);
 		return;
 	}
 	console.info("intercepting with profile:", intercept);
@@ -89,8 +93,9 @@ async function linkle(profile_name: string, link: string, referer: string) {
 				(opts.header as string[]).push("Cookie: " + cookie);
 			}
 		}
+		console.debug("aria2:", link, opts);
 		if (to_boolean(profile.dry_run)) {
-			console.debug("aria2 dry run:", link, opts);
+			console.info("dry run, abort");
 			return;
 		}
 		const gid = await a2addUri(
