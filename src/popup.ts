@@ -6,7 +6,7 @@ async function init(sync: unknown) {
 	const { profiles } = sync as {
 		profiles?: string[];
 	};
-	const { intercept } = (await chrome.storage.local.get("intercept")) as {
+	const { intercept } = (await chrome.storage.session.get("intercept")) as {
 		intercept?: string;
 	};
 
@@ -22,7 +22,7 @@ async function init(sync: unknown) {
 				li = txt("li", name);
 				li.className = "profile";
 				li.addEventListener("click", async () => {
-					await chrome.storage.local.set({ intercept: name });
+					await chrome.storage.session.set({ intercept: name });
 					window.close();
 				});
 			}
@@ -34,7 +34,7 @@ async function init(sync: unknown) {
 			const off = txt("li", "off");
 			off.id = "off";
 			off.addEventListener("click", async () => {
-				await chrome.storage.local.remove("intercept");
+				await chrome.storage.session.remove("intercept");
 				window.close();
 			});
 			profiles_menu_items.push(off);

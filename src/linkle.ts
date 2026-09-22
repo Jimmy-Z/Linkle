@@ -21,7 +21,7 @@ async function download(item: chrome.downloads.DownloadItem) {
 	if (item.url.startsWith("data:") || item.url.startsWith("blob:")) {
 		return;
 	}
-	const intercept = (await chrome.storage.local.get("intercept"))["intercept"];
+	const { intercept } = await chrome.storage.session.get("intercept");
 	if (intercept === undefined) {
 		console.info("intercepting set to off, abort");
 		return;
